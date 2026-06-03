@@ -1,3 +1,5 @@
+![CI](https://github.com/wbaxterh/basilisk/actions/workflows/ci.yml/badge.svg)
+
 # 🐍 Basilisk
 
 **Cardano on-chain analytics, portfolio & trading platform** — a TapTools competitor differentiated on real-time data, transparent pricing, an open developer API, and an agent-native (x402 / MCP) layer.
@@ -77,3 +79,10 @@ Work is tracked as GitHub Issues (one per user story, `US-x.y`) on the Basilisk 
 A local **pre-push hook** (`scripts/git-hooks/pre-push`, auto-activated by `npm install`) blocks accidental direct pushes before they leave your machine.
 
 **Deployment environments:** `staging` (any branch) and `production` (main-only, reviewer-gated). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full flow and `gh secret set` commands.
+
+## 🤝 Contributing
+
+We welcome contributions! Please read:
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — development setup, branch conventions, PR workflow, and CI details.
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — our community standards (Contributor Covenant v2.1).
