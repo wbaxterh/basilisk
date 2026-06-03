@@ -2,7 +2,8 @@
   "name": "@basilisk/ingestion",
   "version": "0.1.0",
   "private": true,
-  "description": "Chain follower — tails Ogmios/Oura, normalizes events, publishes to Redis, persists swaps.",
+  "type": "module",
+  "description": "Chain follower \u2014 tails Ogmios/Oura, normalizes events, publishes to Redis, persists swaps.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

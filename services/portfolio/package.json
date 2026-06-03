@@ -2,6 +2,7 @@
   "name": "@basilisk/portfolio",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Resolves UTxOs to holdings, marks to market, computes P&L; powers portfolio + wallet profiler.",
   "main": "dist/index.js",
   "scripts": {

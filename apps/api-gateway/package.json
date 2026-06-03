@@ -2,7 +2,8 @@
   "name": "@basilisk/api-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "API gateway / BFF — auth, rate-limiting, caching, API keys, and the public Data API.",
+  "type": "module",
+  "description": "API gateway / BFF \u2014 auth, rate-limiting, caching, API keys, and the public Data API.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

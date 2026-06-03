@@ -2,6 +2,7 @@
   "name": "@basilisk/alerts",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Alert rules engine evaluating the live event stream (price, %move, whale, balance, new LP).",
   "main": "dist/index.js",
   "scripts": {

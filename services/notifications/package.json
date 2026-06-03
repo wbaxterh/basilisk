@@ -2,6 +2,7 @@
   "name": "@basilisk/notifications",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Multi-channel delivery: in-app, web push, email (Resend/SES), Telegram & Discord.",
   "main": "dist/index.js",
   "scripts": {

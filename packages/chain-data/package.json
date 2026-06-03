@@ -2,6 +2,7 @@
   "name": "@basilisk/chain-data",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Cardano data-access client lib: Demeter (Ogmios/Kupo/db-sync) primary + Blockfrost fallback w/ failover.",
   "main": "dist/index.js",
   "scripts": {

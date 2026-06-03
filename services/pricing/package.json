@@ -2,6 +2,7 @@
   "name": "@basilisk/pricing",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "DEX adapters + VWAP pricing + OHLCV candle engine + quality filter + token metadata.",
   "main": "dist/index.js",
   "scripts": {

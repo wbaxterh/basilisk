@@ -2,6 +2,7 @@
   "name": "@basilisk/shared",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Shared TypeScript types, config loading, and utilities used across services.",
   "main": "dist/index.js",
   "scripts": {

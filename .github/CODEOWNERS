@@ -1,0 +1,3 @@
+# Default owner for everything in the repo.
+# As the team grows, scope ownership per area (e.g. /services/pricing/ @data-lead).
+*       @wbaxterh
