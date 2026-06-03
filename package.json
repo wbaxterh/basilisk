@@ -15,6 +15,7 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev:web": "npm run dev --workspace apps/web",
+    "db:migrate": "bash db/migrate.sh",
     "docs:pdf": "npm run generate --workspace docs",
     "prepare": "git config core.hooksPath scripts/git-hooks 2>/dev/null || true"
   },

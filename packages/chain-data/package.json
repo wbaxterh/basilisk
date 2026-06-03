@@ -5,14 +5,25 @@
   "type": "module",
   "description": "Cardano data-access client lib: Demeter (Ogmios/Kupo/db-sync) primary + Blockfrost fallback w/ failover.",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "@types/node": "^20.11.0"
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@basilisk/shared": "*",
+    "@blockfrost/blockfrost-js": "^6.1.1"
   }
 }
