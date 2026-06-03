@@ -1,0 +1,17 @@
+{
+  "name": "@basilisk/pricing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DEX adapters + VWAP pricing + OHLCV candle engine + quality filter + token metadata.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0"
+  }
+}

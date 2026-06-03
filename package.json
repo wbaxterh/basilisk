@@ -1,0 +1,23 @@
+{
+  "name": "basilisk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Basilisk — Cardano on-chain analytics, portfolio & trading platform (monorepo)",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*",
+    "docs"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:web": "npm run dev --workspace apps/web",
+    "docs:pdf": "npm run generate --workspace docs"
+  },
+  "engines": {
+    "node": ">=20.18.0"
+  }
+}

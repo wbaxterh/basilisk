@@ -1,0 +1,14 @@
+{
+  "name": "@basilisk/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Basilisk PRD & MVP plan — branded PDF deliverables (HTML → PDF)",
+  "scripts": {
+    "generate": "node scripts/generate-pdf.js",
+    "generate:prd": "node scripts/generate-pdf.js prd",
+    "generate:plan": "node scripts/generate-pdf.js plan"
+  },
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

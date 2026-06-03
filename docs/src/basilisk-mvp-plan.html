@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basilisk — MVP Implementation Plan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: #0F172A;
+      background: #FFFFFF;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 820px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- Cover ---------- */
+    .cover {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; text-align: center; padding: 80px 24px;
+      background: linear-gradient(160deg, #0033AD 0%, #0A1E5E 60%, #061233 100%);
+      color: #FFFFFF; overflow: hidden;
+    }
+    .cover::before {
+      content: ''; position: absolute; inset: 0;
+      background-image: radial-gradient(circle at 80% 20%, rgba(45,182,124,0.25), transparent 45%),
+                        radial-gradient(circle at 15% 85%, rgba(56,118,255,0.30), transparent 40%);
+    }
+    .cover-inner { position: relative; z-index: 1; }
+    .cover-mark { font-size: 64px; margin-bottom: 8px; line-height: 1; }
+    .cover-logo { font-size: 76px; font-weight: 800; letter-spacing: -3px; margin-bottom: 18px; }
+    .cover-logo .snek { color: #FFFFFF; }
+    .cover-logo .tools { color: #2DB67C; }
+    .cover-subtitle { font-size: 22px; font-weight: 500; color: #C7D6FF; margin-bottom: 36px; }
+    .cover-pill {
+      display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: #0033AD; background: #FFFFFF;
+      padding: 8px 18px; border-radius: 999px; margin-bottom: 40px;
+    }
+    .cover-meta { font-size: 15px; color: #9FB4E8; margin-bottom: 6px; }
+    .cover-confidential {
+      position: relative; z-index: 1; margin-top: 64px;
+      font-size: 12px; font-weight: 600; color: #7E93C9; text-transform: uppercase;
+      letter-spacing: 2px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 22px;
+    }
+
+    /* ---------- Typography ---------- */
+    h1 { font-size: 27px; font-weight: 800; color: #0F172A; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid #0033AD; letter-spacing: -0.4px; }
+    h2 { font-size: 20px; font-weight: 700; color: #0F172A; margin-top: 24px; margin-bottom: 12px; letter-spacing: -0.2px; }
+    h3 { font-size: 16.5px; font-weight: 700; color: #0033AD; margin-top: 28px; margin-bottom: 10px; }
+    h4 { font-size: 15px; font-weight: 600; color: #0F172A; margin-top: 20px; margin-bottom: 8px; }
+    p { margin-bottom: 14px; }
+    ul, ol { margin-bottom: 14px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a { color: #0033AD; text-decoration: none; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: 12.5px; font-family: 'JetBrains Mono', monospace; color: #0A1E5E; }
+    hr { border: none; border-top: 1px solid #E2E8F0; margin: 40px 0; }
+    strong { font-weight: 700; color: #0B1220; }
+
+    .lead { font-size: 16px; color: #334155; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #2DB67C; margin-bottom: 6px; }
+
+    /* ---------- Layout ---------- */
+    .section { padding: 30px 0; }
+    .page-break { page-break-before: always; }
+    .avoid-break { page-break-inside: avoid; }
+
+    /* ---------- TOC ---------- */
+    .toc { padding: 40px 0; }
+    .toc ol { list-style: none; counter-reset: toc; padding: 0; }
+    .toc > ol > li { counter-increment: toc; margin-bottom: 9px; }
+    .toc > ol > li > a { font-size: 15.5px; font-weight: 600; display: flex; align-items: baseline; gap: 12px; color: #0F172A; }
+    .toc > ol > li > a::before { content: counter(toc) "."; color: #0033AD; font-weight: 800; min-width: 26px; }
+
+    /* ---------- Tables ---------- */
+    table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 20px 0; font-size: 13.5px; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.06); }
+    thead th { background: #0033AD; color: #FFFFFF; font-weight: 600; padding: 11px 15px; text-align: left; font-size: 13px; }
+    tbody td { padding: 11px 15px; border-bottom: 1px solid #EEF2F7; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #F8FAFC; }
+    tbody tr:last-child td { border-bottom: none; }
+    table.compact { font-size: 13px; }
+    table.compact td, table.compact th { padding: 9px 13px; }
+
+    /* ---------- Callouts ---------- */
+    .callout { background: #E0E9FF; border-left: 4px solid #0033AD; border-radius: 0 10px 10px 0; padding: 18px 22px; margin: 22px 0; font-size: 14px; }
+    .callout p { margin-bottom: 8px; }
+    .callout p:last-child { margin-bottom: 0; }
+    .callout-title { font-weight: 700; color: #0033AD; display: block; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .callout-green { background: #E0F7EC; border-left-color: #16A34A; }
+    .callout-green .callout-title { color: #15803D; }
+    .callout-amber { background: #FEF3C7; border-left-color: #D97706; }
+    .callout-amber .callout-title { color: #B45309; }
+
+    /* ---------- Stat cards ---------- */
+    .stat-row { display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap; }
+    .stat-card { flex: 1; min-width: 150px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px; }
+    .stat-value { font-size: 26px; font-weight: 800; color: #0033AD; letter-spacing: -1px; }
+    .stat-value .accent { color: #16A34A; }
+    .stat-label { font-size: 12.5px; color: #64748B; margin-top: 2px; line-height: 1.4; }
+
+    /* ---------- Out of scope ---------- */
+    .out-of-scope { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px 24px; margin: 22px 0; }
+    .out-of-scope-item { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; font-size: 13.5px; }
+    .out-of-scope-item:last-child { margin-bottom: 0; }
+    .oos-x { color: #DC2626; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+
+    /* ---------- Badges ---------- */
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .badge-mvp { background: #E0F7EC; color: #15803D; }
+    .badge-p2 { background: #E0E9FF; color: #0033AD; }
+    .badge-now { background: #FEF3C7; color: #B45309; }
+
+    /* ---------- Story blocks (plan-specific) ---------- */
+    .story { background: #FBFCFE; border: 1px solid #E8EDF5; border-left: 3px solid #0033AD; border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 14px 0; page-break-inside: avoid; }
+    .story-head { font-size: 14.5px; font-weight: 700; color: #0B1220; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .story-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #0033AD; background: #E0E9FF; padding: 1px 7px; border-radius: 5px; }
+    .story-as { font-size: 13.5px; color: #475569; font-style: italic; margin-bottom: 8px; }
+    .story .ac { font-size: 13px; margin-bottom: 8px; }
+    .story ul { margin-bottom: 0; font-size: 13px; }
+    .story ul li { margin-bottom: 4px; }
+    .pri { font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+    .pri-must { background: #FEE2E2; color: #B91C1C; }
+    .pri-should { background: #FEF3C7; color: #B45309; }
+    .pri-nice { background: #E0F7EC; color: #15803D; }
+    .pts { font-size: 11.5px; font-weight: 700; color: #64748B; background: #F1F5F9; padding: 2px 8px; border-radius: 999px; margin-left: auto; }
+    .epic-meta { font-size: 13px; color: #64748B; font-style: italic; margin-bottom: 4px; }
+
+    pre.flow { background: #0A1E5E; color: #C7D6FF; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; padding: 18px 20px; border-radius: 12px; overflow-x: auto; margin: 18px 0; }
+
+    /* ---------- Print ---------- */
+    @media print {
+      body { font-size: 12.5px; }
+      .cover { min-height: 980px; padding: 0 24px; page-break-after: always; display: flex; }
+      .toc { page-break-after: always; }
+      .page-break { page-break-before: always; }
+      h1, h2, h3, h4 { page-break-after: avoid; }
+      table, .callout, .out-of-scope, .stat-row, .story { page-break-inside: avoid; }
+      tr { page-break-inside: avoid; }
+      a { color: #0033AD; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-mark">🐍</div>
+    <div class="cover-logo"><span class="snek">Basi</span><span class="tools">lisk</span></div>
+    <div class="cover-pill">MVP Implementation Plan &amp; Cost Model</div>
+    <div class="cover-subtitle">User Stories, Backlog, Cardano Data Strategy<br>&amp; Infrastructure Costs</div>
+    <div class="cover-meta">Draft v0.1 &nbsp;&bull;&nbsp; June 2026</div>
+    <div class="cover-meta">Prepared by Wes Huber</div>
+  </div>
+  <div class="cover-confidential">Confidential &mdash; Internal Use Only</div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="container">
+  <div class="toc">
+    <h1>Table of Contents</h1>
+    <ol>
+      <li><a href="#mvp">What "MVP" Means</a></li>
+      <li><a href="#assumptions">Assumptions &amp; Team</a></li>
+      <li><a href="#epics">Epic Map &amp; Milestones</a></li>
+      <li><a href="#backlog">Backlog: Epics &rarr; Stories &rarr; Tasks</a></li>
+      <li><a href="#dod">Definition of Done</a></li>
+      <li><a href="#data">Cardano Data Layer &amp; the "Dedalus" Question</a></li>
+      <li><a href="#cost">Infrastructure Cost Model</a></li>
+      <li><a href="#risks">Key Risks &amp; Mitigations</a></li>
+      <li><a href="#next">Immediate Next Actions</a></li>
+    </ol>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ============ 1. MVP ============ -->
+<div class="section page-break" id="mvp">
+  <div class="eyebrow">Section 1</div>
+  <h1>1. What "MVP" Means</h1>
+  <p class="lead">The PRD defines four phases. This plan covers <strong>MVP = Phase 0 (Foundations) + Phase 1 (MVP Web)</strong> &mdash; roughly <strong>Months 0&ndash;5</strong>. The goal: a usable web product at rough parity with TapTools' <em>core</em> analytics + portfolio surfaces, plus a public Data API beta.</p>
+
+  <h2>In Scope</h2>
+  <table class="compact">
+    <thead><tr><th style="width:8%">#</th><th>Surface</th><th style="width:18%">PRD ref</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A</strong></td><td>Portfolio Tracker (multi-wallet, ADA/USD, value-over-time, holdings, P&amp;L)</td><td>&sect;5.1 A</td></tr>
+      <tr><td><strong>B</strong></td><td>Token Charts (candles, OHLCV, live price, trades feed, token info)</td><td>&sect;5.1 B</td></tr>
+      <tr><td><strong>C</strong></td><td>Market Screeners (top tokens, gainers/losers, trending, new)</td><td>&sect;5.1 C</td></tr>
+      <tr><td><strong>D</strong></td><td>Wallet Profiler / Smart Money (any-address deep-dive, follow, whale feed)</td><td>&sect;5.1 D</td></tr>
+      <tr><td><strong>E</strong></td><td>Token Distribution (top holders, concentration)</td><td>&sect;5.1 E</td></tr>
+      <tr><td><strong>F</strong></td><td>Alerts (price / % move / whale / balance, multi-channel)</td><td>&sect;5.1 F</td></tr>
+      <tr><td><strong>G</strong></td><td>Public Data API <strong>beta</strong> (REST, keys, free tier)</td><td>&sect;5.1 G</td></tr>
+      <tr><td><strong>&mdash;</strong></td><td>The data engine under all of it: chain ingestion + DEX adapters + pricing engine</td><td>&sect;7</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Explicitly Deferred (NOT MVP)</h2>
+  <div class="out-of-scope">
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>In-app swaps, WebSocket streaming API, full DeFi dashboard, NFT analytics suite, mobile apps, embeddable widgets.</span></div>
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>x402 agent API, MCP server, A2A trading rails &mdash; the <strong>differentiators</strong> come once the core is proven.</span></div>
+  </div>
+
+  <div class="callout callout-green">
+    <span class="callout-title">MVP Success Bar</span>
+    <p>A trader can connect/watch a wallet and see correct net worth + P&amp;L; open any token and see a correct live price + chart + recent trades; screen the market; look up any wallet; set an alert that fires; and a developer can pull token/market/wallet data from a documented REST API with a free key.</p>
+  </div>
+</div>
+
+<!-- ============ 2. ASSUMPTIONS ============ -->
+<div class="section page-break" id="assumptions">
+  <div class="eyebrow">Section 2</div>
+  <h1>2. Assumptions &amp; Team</h1>
+  <ul>
+    <li><strong>Team:</strong> 2&ndash;4 engineers. Lean split: 1 backend/data (owns ingestion + pricing &mdash; the moat), 1 full-stack (API + portfolio/wallet), 1 frontend (web), + fractional design/PM. Estimates assume <strong>~3 FTE</strong>.</li>
+    <li><strong>Estimates</strong> are in <strong>story points</strong> (Fibonacci; 1 pt &asymp; &frac12; day of one engineer incl. test + review). Planning numbers, not commitments.</li>
+    <li><strong>Stack</strong> (PRD &sect;7.4): Next.js (web) &middot; NestJS/TypeScript + Go for perf-critical ingestion &middot; Postgres + TimescaleDB + Redis &middot; Cardano data via <strong>Demeter.run</strong> (&sect;6) &middot; TradingView lightweight-charts.</li>
+    <li><strong>Data strategy (&sect;6):</strong> start <strong>managed</strong> (Demeter + Blockfrost free fallback) rather than self-hosting a node &mdash; removes ~1&ndash;3 weeks of db-sync ops from the critical path.</li>
+  </ul>
+</div>
+
+<!-- ============ 3. EPICS ============ -->
+<div class="section page-break" id="epics">
+  <div class="eyebrow">Section 3</div>
+  <h1>3. Epic Map &amp; Milestones</h1>
+  <pre class="flow">M0  Foundations     ──►  EPIC-0 Data Infra · EPIC-1 Platform/Auth · EPIC-9 DevOps
+M1  Pricing+Charts  ──►  EPIC-0 (DEX adapters, pricing) · EPIC-3 Token Charts
+M2  Portfolio       ──►  EPIC-2 Portfolio Tracker · EPIC-1 Wallet connect
+M3  Discovery       ──►  EPIC-4 Screeners · EPIC-5 Profiler/Smart-Money · EPIC-6 Distribution
+M4  Alerts + API    ──►  EPIC-7 Alerts · EPIC-8 Public Data API beta
+M5  Harden + launch ──►  perf · QA · docs · beta onboarding · observability</pre>
+
+  <table class="compact">
+    <thead><tr><th style="width:14%">Epic</th><th>Title</th><th style="width:18%">Pts (est)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>EPIC-0</strong></td><td>Data Infrastructure: ingestion, DEX adapters, pricing engine</td><td>~110</td></tr>
+      <tr><td><strong>EPIC-1</strong></td><td>Platform: auth, wallet connect, API gateway/BFF</td><td>~45</td></tr>
+      <tr><td><strong>EPIC-2</strong></td><td>Portfolio Tracker</td><td>~55</td></tr>
+      <tr><td><strong>EPIC-3</strong></td><td>Token Charts</td><td>~45</td></tr>
+      <tr><td><strong>EPIC-4</strong></td><td>Market Screeners</td><td>~30</td></tr>
+      <tr><td><strong>EPIC-5</strong></td><td>Wallet Profiler / Smart Money</td><td>~40</td></tr>
+      <tr><td><strong>EPIC-6</strong></td><td>Token Distribution</td><td>~20</td></tr>
+      <tr><td><strong>EPIC-7</strong></td><td>Alerts</td><td>~40</td></tr>
+      <tr><td><strong>EPIC-8</strong></td><td>Public Data API (beta)</td><td>~35</td></tr>
+      <tr><td><strong>EPIC-9</strong></td><td>Web shell, design system, DevOps, observability</td><td>~50</td></tr>
+      <tr><td><strong>Total</strong></td><td></td><td><strong>~470 pts</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout callout-amber">
+    <span class="callout-title">The Long Pole</span>
+    <p>At ~3 FTE, <strong>~5 months is realistic</strong> &mdash; consistent with the PRD's Month 0&ndash;5 window. <strong>EPIC-0 is the critical path and the project's primary risk;</strong> everything else depends on correct, fresh prices.</p>
+  </div>
+</div>
+
+<!-- ============ 4. BACKLOG ============ -->
+<div class="section page-break" id="backlog">
+  <div class="eyebrow">Section 4</div>
+  <h1>4. Backlog: Epics &rarr; Stories &rarr; Tasks</h1>
+  <p>Story IDs are <code>US-&lt;epic&gt;.&lt;n&gt;</code>. Each carries acceptance criteria (AC) and tasks. Priority: <span class="pri pri-must">Must</span> <span class="pri pri-should">Should</span> <span class="pri pri-nice">Nice</span>.</p>
+
+  <!-- EPIC 0 -->
+  <h2>EPIC-0 &mdash; Data Infrastructure (the moat)</h2>
+  <p class="epic-meta">Without correct, fresh prices nothing else matters. This epic is the critical path.</p>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.1</span> Connect to Cardano chain data <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <p class="story-as">As the platform, I need reliable access to live + historical Cardano chain data so all downstream services have a source of truth.</p>
+    <p class="ac"><strong>AC:</strong> Read chain tip, stream new blocks/txs, query history; failover if primary degrades.</p>
+    <ul>
+      <li>Provision <strong>Demeter.run</strong>; stand up <strong>Ogmios</strong> + <strong>Kupo</strong> + <strong>db-sync</strong> (scale-to-zero) ports.</li>
+      <li>Wire <strong>Blockfrost free tier</strong> (50k req/day) as REST fallback/cross-check.</li>
+      <li>Thin internal <code>chain-data</code> client lib wrapping both, with health checks + circuit breaker.</li>
+      <li>Define which addresses/policies Kupo indexes (DEX pool scripts + on-demand wallets).</li>
+    </ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.2</span> Ingest the chain into our pipeline <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As the data layer, I want to tail new blocks and persist relevant events for a real-time + queryable stream.</p>
+    <p class="ac"><strong>AC:</strong> New DEX swaps appear within the &lt;5s freshness target; pipeline survives restarts and resumes.</p>
+    <ul>
+      <li>Ogmios/Oura chain-follower (Go/TS) &rarr; normalized event stream &rarr; Redis pub/sub.</li>
+      <li>Idempotent checkpointing (resume from last slot) + Cardano rollback handling.</li>
+      <li>Persist raw swap/pool events to TimescaleDB.</li>
+    </ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.3</span> DEX adapters (decode pools &amp; swaps) <span class="pri pri-must">Must</span><span class="pts">34 pts</span></div>
+    <p class="story-as">As the pricing engine, I need each DEX's pools and swaps decoded into reserves + trade events to derive price and liquidity.</p>
+    <p class="ac"><strong>AC:</strong> Per DEX, reserves and swaps reconstructed accurately and validated vs the DEX's own UI for sample tokens.</p>
+    <ul>
+      <li>Adapter framework + shared interface (<code>getPools</code>, <code>decodeSwap</code>, <code>getReserves</code>).</li>
+      <li><strong>Minswap</strong> (do first — highest volume), <strong>SundaeSwap</strong>, <strong>WingRiders</strong>, <strong>MuesliSwap</strong>, <strong>VyFinance</strong> adapters.</li>
+      <li><strong>Spike:</strong> evaluate <strong>Charli3 Dendrite</strong> (OSS SDK already unifying these DEXs) to accelerate or replace hand-rolled adapters &mdash; could cut this story substantially.</li>
+      <li>Per-adapter conformance tests + golden fixtures; alarm on decode failures (protocols upgrade scripts).</li>
+    </ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.4</span> Pricing engine: VWAP + OHLCV <span class="pri pri-must">Must</span><span class="pts">21 pts</span></div>
+    <p class="story-as">As a user, I want an accurate single price per token so charts, portfolio, and screeners all agree.</p>
+    <p class="ac"><strong>AC:</strong> Volume-weighted across pools (ADA base) &rarr; USD via oracle; OHLCV for 1m/5m/15m/1h/4h/1d; matches manual spot-check.</p>
+    <ul>
+      <li>VWAP aggregation across pools; <strong>ADA/USD oracle</strong> (cross-check &ge;2 sources).</li>
+      <li>OHLCV candle builder &rarr; TimescaleDB continuous aggregates; backfill top-N tokens via db-sync.</li>
+      <li>Live candle updates &rarr; Redis pub/sub for chart/portfolio consumers.</li>
+    </ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.5</span> Quality / spam filter <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <p class="story-as">As a user, I don't want scam/dust tokens polluting screeners and prices.</p>
+    <p class="ac"><strong>AC:</strong> Tokens below liquidity/volume thresholds flagged "low quality" and excluded from default lists.</p>
+    <ul><li>Configurable thresholds (min liq, min vol, age); outlier handling for thin pools; quarantine list + admin override.</li></ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.6</span> Token metadata service <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <p class="story-as">As a user, I want token names, tickers, logos, decimals, supply, and policy IDs.</p>
+    <p class="ac"><strong>AC:</strong> Each token resolves to standard metadata (CIP-25/68 + registry); missing data degrades gracefully.</p>
+    <ul><li>Resolve from token registry + on-chain metadata; cache in Postgres; supply/FDV/mcap computation.</li></ul>
+  </div>
+
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-0.7</span> Reorg / data-correctness safeguards <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <ul><li>Rollback-aware writes; reconciliation job cross-checking prices vs Blockfrost; data-freshness SLA monitor (p95 dashboard); staleness alerting.</li></ul>
+  </div>
+
+  <!-- EPIC 1 -->
+  <h2>EPIC-1 &mdash; Platform: Auth, Wallet Connect, API Gateway</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-1.1</span> CIP-30 wallet connect (read-only) <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a user, I want to connect my Cardano wallet so the app can read my holdings.</p>
+    <p class="ac"><strong>AC:</strong> Connect Eternl, Lace, Nami, Vespr, Typhon via CIP-30; read-only; address(es) persisted; disconnect works.</p>
+    <ul><li>CIP-30 connector abstraction + per-wallet handling; multi-address support; watch-only address add (no wallet).</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-1.2</span> Account &amp; auth (email/social + sign-in-with-wallet) <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a user, I want an account so my wallets, watchlists, and alerts persist.</p>
+    <p class="ac"><strong>AC:</strong> Sign up via email/social or CIP-30 sign-in-with-wallet; sessions; password reset; minimal PII.</p>
+    <ul><li>Auth service (consider Supabase Auth to save build time); session/JWT; wallet-signature login (CIP-8/30 <code>signData</code>).</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-1.3</span> API Gateway / BFF <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As the system, I want one gateway handling auth, rate-limiting, caching, and API keys.</p>
+    <p class="ac"><strong>AC:</strong> All traffic flows through gateway; per-tier rate limits; response caching; request metering recorded.</p>
+    <ul><li>Gateway (NestJS); Redis rate limiter; API-key issuance/validation; per-endpoint cache TTLs; usage metering &rarr; Postgres.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-1.4</span> Watchlists <span class="pri pri-should">Should</span><span class="pts">6 pts</span></div>
+    <p class="story-as">As a user, I want to save tokens/wallets to a watchlist.</p>
+    <ul><li>Watchlist CRUD; sync across devices.</li></ul>
+  </div>
+
+  <!-- EPIC 2 -->
+  <h2>EPIC-2 &mdash; Portfolio Tracker</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-2.1</span> Net worth &amp; holdings <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a holder, I want my total net worth and a holdings breakdown so I know what I own and its worth.</p>
+    <p class="ac"><strong>AC:</strong> Net worth in ADA + USD + chosen fiat; holdings across tokens, NFTs, LP (decoded), liquid-staking, lending; within freshness SLA.</p>
+    <ul><li>Portfolio service: UTxOs &rarr; balances (Kupo); decode LP to underlying; mark-to-market via pricing engine; multi-wallet aggregation; fiat conversion.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-2.2</span> Value-over-time chart <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <p class="story-as">As a holder, I want a chart of my portfolio value over time.</p>
+    <p class="ac"><strong>AC:</strong> Historical net-worth series (daily at MVP); handles wallets added later (backfill).</p>
+    <ul><li>Daily snapshot job + historical reconstruction from trade history; chart endpoint.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-2.3</span> Realized / unrealized P&amp;L <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a trader, I want P&amp;L per position so I know if I'm up or down.</p>
+    <p class="ac"><strong>AC:</strong> Per-token realized + unrealized P&amp;L from reconstructed trades; cost-basis method documented (e.g. avg cost).</p>
+    <ul><li>Trade reconstruction from on-chain swaps per wallet; cost-basis engine; edge cases (airdrops, LP, transfers).</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-2.4</span> Trade history <span class="pri pri-should">Should</span><span class="pts">8 pts</span></div>
+    <ul><li>Per-wallet chronological trade list: token, side, price, value, tx link.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-2.5</span> Portfolio UI <span class="pri pri-must">Must</span><span class="pts">11 pts</span></div>
+    <ul><li>Portfolio dashboard; holdings table; allocation breakdown; value chart; P&amp;L; empty/watch-only states.</li></ul>
+  </div>
+
+  <!-- EPIC 3 -->
+  <h2>EPIC-3 &mdash; Token Charts</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-3.1</span> Candlestick chart + OHLCV <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a trader, I want a fast candlestick chart with multiple timeframes.</p>
+    <p class="ac"><strong>AC:</strong> TradingView lightweight-charts; 1m&rarr;1d; sub-second load from cache; live last-candle updates.</p>
+    <ul><li>Chart component; OHLCV endpoint (Timescale continuous aggregates); live update via Redis subscription.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-3.2</span> Live price + token info panel <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <p class="ac"><strong>AC:</strong> Live VWAP; supply, mcap, FDV, liquidity, holders, links, policy ID; price-change %, ATH/ATL.</p>
+    <ul><li>Token detail endpoint (pricing + metadata + distribution); info panel UI.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-3.3</span> Recent trades feed <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <p class="ac"><strong>AC:</strong> Last ~500 trades (side, size, price, time, wallet) updating live.</p>
+    <ul><li>Trades endpoint + live feed UI; whale-trade highlighting.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-3.4</span> Token page shell <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <ul><li><code>/token/[id]</code> route; chart + info + trades + distribution tabs; share/deeplink; SEO basics.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-3.5</span> Chart drawing tools / indicators <span class="pri pri-nice">Nice</span><span class="pts">8 pts</span></div>
+    <ul><li>Basic indicators (MA, volume); drawing tools (defer if tight).</li></ul>
+  </div>
+
+  <!-- EPIC 4 -->
+  <h2>EPIC-4 &mdash; Market Screeners</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-4.1</span> Top tokens &amp; movers <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a trader, I want ranked lists (top by mcap/volume, gainers, losers, trending, new) to find opportunities.</p>
+    <p class="ac"><strong>AC:</strong> Ranked lists with quality thresholds; sortable/paginated; refreshes within SLA.</p>
+    <ul><li>Screener query layer over TimescaleDB; ranking jobs; new-listing detection; trending heuristic.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-4.2</span> Filters <span class="pri pri-should">Should</span><span class="pts">8 pts</span></div>
+    <ul><li>Filter by liquidity, volume, age, category; saved filters.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-4.3</span> Screener UI <span class="pri pri-must">Must</span><span class="pts">9 pts</span></div>
+    <ul><li>Screener tables; tabs; sparklines; responsive.</li></ul>
+  </div>
+
+  <!-- EPIC 5 -->
+  <h2>EPIC-5 &mdash; Wallet Profiler / Smart Money</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-5.1</span> Any-address profiler <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a user, I want to look up any wallet's total/liquid value, holdings, volume, activity, and P&amp;L.</p>
+    <p class="ac"><strong>AC:</strong> Any address/handle &rarr; net worth, holdings, volume, activity, P&amp;L; reuses portfolio engine read-only.</p>
+    <ul><li>Profiler endpoint (generalize portfolio service to any address); ADA Handle resolution; UI.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-5.2</span> Smart-money lists &amp; follow <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a trader, I want curated lists of profitable/high-activity wallets and to follow them.</p>
+    <p class="ac"><strong>AC:</strong> Curated lists (by PnL/volume/activity); follow a wallet; per-wallet activity feed.</p>
+    <ul><li>Wallet-scoring job (PnL/volume leaderboards); follow model; basic clustering/labeling.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-5.3</span> Whale-trade feed <span class="pri pri-should">Should</span><span class="pts">8 pts</span></div>
+    <ul><li>Threshold-based whale-trade detection from swap stream &rarr; feed + (later) alert source.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-5.4</span> Profiler / smart-money UI <span class="pri pri-must">Must</span><span class="pts">6 pts</span></div>
+    <ul><li>Wallet page; smart-money dashboard; follow buttons.</li></ul>
+  </div>
+
+  <!-- EPIC 6 -->
+  <h2>EPIC-6 &mdash; Token Distribution</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-6.1</span> Holder distribution <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a due-diligence user, I want to see holder concentration and top holders.</p>
+    <p class="ac"><strong>AC:</strong> Top holders, top-10 %, Gini, LP-vs-wallet split, supply distribution; excludes burn/known contracts.</p>
+    <ul><li>Holder enumeration per policy/asset (Kupo/db-sync); concentration metrics; known-address labeling; token-page UI.</li></ul>
+  </div>
+
+  <!-- EPIC 7 -->
+  <h2>EPIC-7 &mdash; Alerts</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-7.1</span> Alert rules engine <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a user, I want alerts on price thresholds, % moves, whale trades, and balance changes.</p>
+    <p class="ac"><strong>AC:</strong> CRUD alert rules; evaluated against live stream; fire-once/repeat; per-tier limits.</p>
+    <ul><li>Rule model + evaluation service consuming Redis pub/sub; dedupe/cooldown; persistence.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-7.2</span> Multi-channel delivery <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a user, I want alerts via in-app, push, email, and Telegram/Discord.</p>
+    <p class="ac"><strong>AC:</strong> Delivery to in-app, web push, email, Telegram/Discord; retry on failure; channel prefs.</p>
+    <ul><li>Notification service; email (Resend/SES); web push; Telegram + Discord bots; delivery log + retries.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-7.3</span> Alerts UI <span class="pri pri-must">Must</span><span class="pts">8 pts</span></div>
+    <ul><li>Alert creation from token/wallet pages; management page; in-app notification center.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-7.4</span> New LP / new listing alerts <span class="pri pri-should">Should</span><span class="pts">6 pts</span></div>
+    <ul><li>Detect new pools/listings &rarr; alertable event.</li></ul>
+  </div>
+
+  <!-- EPIC 8 -->
+  <h2>EPIC-8 &mdash; Public Data API (beta)</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-8.1</span> REST endpoints (parity surface) <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <p class="story-as">As a developer, I want REST endpoints for token, NFT(min), market, and wallet data.</p>
+    <p class="ac"><strong>AC:</strong> Endpoints mirroring PRD &sect;2.3; stable, versioned (<code>/v1</code>), consistent schemas.</p>
+    <ul><li>Public API module over existing services; pagination; error contract; <code>/v1</code> versioning.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-8.2</span> API keys, tiers &amp; rate limits <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <p class="story-as">As a developer, I want a free key with clear rate limits.</p>
+    <p class="ac"><strong>AC:</strong> Self-serve key issuance; free tier + paid placeholders; usage dashboard; per-key metering.</p>
+    <ul><li>Key management UI; tier config; metering surfaced to user; quota enforcement at gateway.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-8.3</span> Docs, SDK stub &amp; sandbox <span class="pri pri-must">Must</span><span class="pts">12 pts</span></div>
+    <p class="story-as">As a developer, I want great docs so I can integrate fast.</p>
+    <p class="ac"><strong>AC:</strong> OpenAPI spec; interactive docs; quickstart; TS client stub; example calls.</p>
+    <ul><li>OpenAPI generation; docs site (Scalar/Redoc); TS SDK stub; copy-paste examples.</li></ul>
+  </div>
+
+  <!-- EPIC 9 -->
+  <h2>EPIC-9 &mdash; Web Shell, Design System, DevOps &amp; Observability</h2>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-9.1</span> App shell &amp; design system <span class="pri pri-must">Must</span><span class="pts">13 pts</span></div>
+    <ul><li>Next.js shell; navigation; theming (Cardano-blue / serpent-green brand); component library; light/dark; responsive; loading/empty/error states.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-9.2</span> CI/CD &amp; environments <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <ul><li>GitHub Actions (lint/test/build/deploy); dev/staging/prod; preview deploys; secrets in env/secret store (none in repo); IaC for backend.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-9.3</span> Observability &amp; error tracking <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <ul><li>Grafana Cloud (metrics/logs) + Sentry (errors); data-freshness SLA dashboard; uptime/alerting; structured logging.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-9.4</span> QA, load test &amp; beta onboarding <span class="pri pri-must">Must</span><span class="pts">10 pts</span></div>
+    <ul><li>E2E tests (Playwright) for core flows; load test pricing/API; beta waitlist + onboarding; feedback loop.</li></ul>
+  </div>
+  <div class="story">
+    <div class="story-head"><span class="story-id">US-9.5</span> Security &amp; privacy pass <span class="pri pri-must">Must</span><span class="pts">7 pts</span></div>
+    <ul><li>Authz review; rate-limit abuse tests; PII minimization; dependency scan; secrets audit before public launch.</li></ul>
+  </div>
+</div>
+
+<!-- ============ 5. DOD ============ -->
+<div class="section page-break" id="dod">
+  <div class="eyebrow">Section 5</div>
+  <h1>5. Definition of Done</h1>
+  <p>A story is <strong>done</strong> when: code reviewed + merged &middot; unit/integration tests pass &middot; meets AC &middot; instrumented (logs/metrics) &middot; no secrets in code &middot; docs/changelog updated &middot; deployed to staging and smoke-tested.</p>
+  <div class="callout">
+    <span class="callout-title">Data stories carry an extra gate</span>
+    <p>Any story touching prices, balances, or P&amp;L additionally requires a <strong>correctness cross-check against an external source</strong> (Blockfrost / the DEX's own UI) before it's accepted.</p>
+  </div>
+</div>
+
+<!-- ============ 6. DATA LAYER ============ -->
+<div class="section page-break" id="data">
+  <div class="eyebrow">Section 6</div>
+  <h1>6. Cardano Data Layer &amp; the "Dedalus" Question</h1>
+  <div class="callout callout-amber">
+    <span class="callout-title">Finding up front</span>
+    <p><strong>"Dedalus" is not a real Cardano data-infra product.</strong> The name almost certainly refers to <strong>Demeter.run</strong> (by TxPipe) &mdash; the actual managed Cardano infrastructure PaaS (phonetically <em>De-meter &asymp; De-dalus</em>). The only similar real thing is <strong>Daedalus</strong>, IOG's desktop full-node <em>wallet</em> &mdash; an end-user app, irrelevant to our data layer. <strong>The intended product is Demeter, and it's a good fit.</strong></p>
+  </div>
+
+  <h2>Options Evaluated</h2>
+  <table class="compact">
+    <thead><tr><th style="width:20%">Provider</th><th>What it gives us</th><th style="width:26%">Pricing (Jun 2026)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Demeter.run</strong> &#9733;</td><td>Hosted <strong>Ogmios, Kupo, Oura, db-sync, cardano-node</strong> &mdash; the exact primitives we'd otherwise self-host. Scale-to-zero.</td><td>Kupo ~$0.09/100k req; Ogmios ~$0.23/100k req; db-sync billed by connection-time, $0 idle. Free tier (grant-subsidized). <em>Confirm exact rates in-dashboard.</em></td></tr>
+      <tr><td><strong>Blockfrost</strong></td><td>Managed REST API (no streaming).</td><td>Free 50k req/day; Hobby &euro;29/mo (300k/day); Developer &euro;79/mo (1M/day).</td></tr>
+      <tr><td><strong>Koios</strong></td><td>Community decentralized REST API.</td><td>Free 50k/day; Pro ~$30/mo (500k/day); Premium ~$75/mo (1.2M/day).</td></tr>
+      <tr><td><strong>Maestro</strong></td><td>Web3 stack incl. <strong>dedicated DEX/market-price endpoints</strong> &mdash; very on-topic.</td><td>Usage-based "compute credits"; has a free tier. <em>Exact USD pricing unverified (page JS-gated).</em></td></tr>
+      <tr><td><strong>Charli3 Dendrite</strong></td><td>OSS SDK unifying DEX data (Minswap/Sundae/WingRiders/Muesli/VyFi/Spectrum/GeniusYield). A <em>library</em>, not a host.</td><td>Free (OSS).</td></tr>
+      <tr><td><strong>Self-host node + db-sync</strong></td><td>Full control, no per-req fees, full SQL.</td><td>Hetzner ~$60&ndash;120/mo fixed; AWS ~$350&ndash;550/mo. ~700 GB SSD, multi-day sync, ongoing ops.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <span class="callout-title">Recommended Path (MVP)</span>
+    <p><strong>Demeter (Ogmios + Kupo + db-sync) as primary, Blockfrost free as fallback, Charli3 Dendrite to accelerate DEX parsing.</strong> Real-time prices via Ogmios/Oura + Dendrite-parsed pools; historical OHLCV via db-sync scale-to-zero SQL; wallet/portfolio UTxOs via Kupo. <strong>Estimated Cardano-data cost at MVP scale: ~$20&ndash;40/month.</strong> Migration trigger: once historical-aggregation load climbs or we need guaranteed real-time latency at scale &rarr; move node + db-sync in-house on Hetzner (~$60&ndash;120/mo fixed).</p>
+  </div>
+</div>
+
+<!-- ============ 7. COST ============ -->
+<div class="section page-break" id="cost">
+  <div class="eyebrow">Section 7</div>
+  <h1>7. Infrastructure Cost Model (MVP)</h1>
+  <p>Cardano data layer (&sect;6) is <strong>~$20&ndash;40/mo</strong> on top of the figures below. All prices June 2026; usage-billed items depend on real traffic. Hetzner excludes ~19% EU VAT.</p>
+
+  <table class="compact">
+    <thead><tr><th>Category</th><th style="width:28%">Scrappy (Hetzner)</th><th style="width:24%">Managed PaaS</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Cardano data (&sect;6)</strong></td><td>$20&ndash;40 (Demeter + Blockfrost free)</td><td>$20&ndash;40</td></tr>
+      <tr><td>Web hosting</td><td>$0 (self-host on VM)</td><td>$20 (Vercel Pro)</td></tr>
+      <tr><td>Backend compute (4&ndash;6 svcs)</td><td>$25 (2&times; Hetzner + k3s)</td><td>$40 (Railway/Fly)</td></tr>
+      <tr><td>Postgres</td><td>$0 (on VM) or $15 (DO)</td><td>$25 (Supabase Pro)</td></tr>
+      <tr><td>Time-series DB (OHLCV)</td><td>$0 (self-host Timescale)</td><td>$30 (Timescale Cloud)</td></tr>
+      <tr><td>Redis (cache + pub/sub)</td><td>$0 (on VM) or $10 (Upstash)</td><td>$10 (Upstash)</td></tr>
+      <tr><td>Monitoring + error tracking</td><td>$0 (Grafana + Sentry free)</td><td>$26 (Sentry Team)</td></tr>
+      <tr><td>Notifications (email/push/TG)</td><td>~$2 (SES) + free channels</td><td>$20 (Resend Pro)</td></tr>
+      <tr><td>Object storage (Cloudflare R2)</td><td>$0&ndash;5</td><td>$5</td></tr>
+      <tr><td>CDN (Cloudflare) / Domain / CI</td><td>~$1</td><td>~$5</td></tr>
+      <tr><td><strong>TOTAL incl. data</strong></td><td><strong>&asymp; $50&ndash;100 / mo</strong></td><td><strong>&asymp; $200&ndash;225 / mo</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-value">$50&ndash;100</div><div class="stat-label">Scrappy MVP / month (self-managed on Hetzner)</div></div>
+    <div class="stat-card"><div class="stat-value">$150&ndash;180</div><div class="stat-label">Pragmatic hybrid most teams land on</div></div>
+    <div class="stat-card"><div class="stat-value">$200<span class="accent">+</span></div><div class="stat-label">Fully managed PaaS / month</div></div>
+  </div>
+
+  <div class="callout">
+    <span class="callout-title">How It Scales</span>
+    <p><strong>Time-series DB is the steepest curve</strong> &mdash; budget it as the #1 scaling cost. Keep storage/CDN on Cloudflare (R2 zero-egress) to avoid the AWS egress trap. Trajectory: MVP <strong>~$50&ndash;225/mo</strong> &rarr; 10k users <strong>~$500&ndash;1,500/mo</strong> &rarr; 50k+ users w/ heavy time-series <strong>$2,000&ndash;6,000+/mo</strong>.</p>
+  </div>
+</div>
+
+<!-- ============ 8. RISKS ============ -->
+<div class="section page-break" id="risks">
+  <div class="eyebrow">Section 8</div>
+  <h1>8. Key Risks &amp; Mitigations</h1>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Risk</th><th style="width:24%">Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td><strong>DEX decoder maintenance</strong></td><td>Prices break silently</td><td>Conformance tests + golden fixtures + decode-failure alarms; lean on Charli3 Dendrite (community-maintained).</td></tr>
+      <tr><td><strong>Data accuracy on thin pools</strong></td><td>Wrong prices erode trust</td><td>Quality/outlier filters (US-0.5); cross-check vs Blockfrost (US-0.7).</td></tr>
+      <tr><td><strong>Demeter cost/latency surprises</strong></td><td>Budget or UX hit</td><td>Validate rates in-dashboard early; Blockfrost fallback; documented Hetzner escape hatch.</td></tr>
+      <tr><td><strong>EPIC-0 on critical path</strong></td><td>Slips whole MVP</td><td>Start Day 1; spike Charli3 Dendrite early; Minswap-first end-to-end.</td></tr>
+      <tr><td><strong>Scope creep into Phase 2</strong></td><td>MVP never ships</td><td>Differentiators explicitly deferred (&sect;1); hold the line.</td></tr>
+      <tr><td><strong>P&amp;L correctness</strong></td><td>Misleading P&amp;L</td><td>Document cost-basis method; reconcile vs known wallets; explicit edge cases.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ 9. NEXT ============ -->
+<div class="section page-break" id="next">
+  <div class="eyebrow">Section 9</div>
+  <h1>9. Immediate Next Actions (First 2 Weeks)</h1>
+  <ol>
+    <li><strong>Stand up Demeter</strong> (Ogmios + Kupo + db-sync); confirm live pricing in-dashboard. <em>(US-0.1)</em></li>
+    <li><strong>Spike Charli3 Dendrite</strong> vs hand-rolled adapters &mdash; decide approach before committing 34 pts. <em>(US-0.3 spike)</em></li>
+    <li><strong>Minswap end-to-end vertical slice:</strong> ingest &rarr; decode &rarr; VWAP &rarr; one token's live price + candle on a bare page. Proves the whole pipeline. <em>(US-0.2 &rarr; US-0.4)</em></li>
+    <li><strong>Pick ADA/USD oracle</strong> + provision Timescale/Postgres/Redis. <em>(US-0.4)</em></li>
+    <li><strong>Scaffold app shell + CI/CD + Sentry/Grafana</strong> so feature work lands in a real pipeline from day one. <em>(EPIC-9)</em></li>
+  </ol>
+  <hr>
+  <p style="text-align:center;color:#94A3B8;font-size:12.5px;">Basilisk MVP Plan &middot; Draft v0.1 &middot; June 2026 &middot; Confidential. Pairs with the product PRD.</p>
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

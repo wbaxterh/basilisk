@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basilisk — Product Requirements Document (Cardano)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+      themeVariables: {
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '13px',
+        primaryColor: '#E0E9FF',
+        primaryTextColor: '#0F172A',
+        primaryBorderColor: '#0033AD',
+        lineColor: '#0033AD',
+        secondaryColor: '#F1F5F9',
+        tertiaryColor: '#E0F7EC'
+      }
+    });
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: #0F172A;
+      background: #FFFFFF;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 820px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---------- Cover ---------- */
+    .cover {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; text-align: center; padding: 80px 24px;
+      background: linear-gradient(160deg, #0033AD 0%, #0A1E5E 60%, #061233 100%);
+      color: #FFFFFF; overflow: hidden;
+    }
+    .cover::before {
+      content: ''; position: absolute; inset: 0;
+      background-image: radial-gradient(circle at 80% 20%, rgba(45,182,124,0.25), transparent 45%),
+                        radial-gradient(circle at 15% 85%, rgba(56,118,255,0.30), transparent 40%);
+    }
+    .cover-inner { position: relative; z-index: 1; }
+    .cover-mark {
+      font-size: 64px; margin-bottom: 8px; line-height: 1;
+    }
+    .cover-logo { font-size: 76px; font-weight: 800; letter-spacing: -3px; margin-bottom: 18px; }
+    .cover-logo .snek { color: #FFFFFF; }
+    .cover-logo .tools { color: #2DB67C; }
+    .cover-subtitle { font-size: 22px; font-weight: 500; color: #C7D6FF; margin-bottom: 36px; }
+    .cover-pill {
+      display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: #0033AD; background: #FFFFFF;
+      padding: 8px 18px; border-radius: 999px; margin-bottom: 40px;
+    }
+    .cover-meta { font-size: 15px; color: #9FB4E8; margin-bottom: 6px; }
+    .cover-confidential {
+      position: relative; z-index: 1; margin-top: 64px;
+      font-size: 12px; font-weight: 600; color: #7E93C9; text-transform: uppercase;
+      letter-spacing: 2px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 22px;
+    }
+
+    /* ---------- Typography ---------- */
+    h1 { font-size: 27px; font-weight: 800; color: #0F172A; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid #0033AD; letter-spacing: -0.4px; }
+    h2 { font-size: 20px; font-weight: 700; color: #0F172A; margin-top: 24px; margin-bottom: 12px; letter-spacing: -0.2px; }
+    h3 { font-size: 16.5px; font-weight: 700; color: #0033AD; margin-top: 28px; margin-bottom: 10px; }
+    h4 { font-size: 15px; font-weight: 600; color: #0F172A; margin-top: 20px; margin-bottom: 8px; }
+    p { margin-bottom: 14px; }
+    ul, ol { margin-bottom: 14px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a { color: #0033AD; text-decoration: none; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: 12.5px; font-family: 'JetBrains Mono', monospace; color: #0A1E5E; }
+    hr { border: none; border-top: 1px solid #E2E8F0; margin: 40px 0; }
+    strong { font-weight: 700; color: #0B1220; }
+
+    .lead { font-size: 16px; color: #334155; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #2DB67C; margin-bottom: 6px; }
+
+    /* ---------- Layout ---------- */
+    .section { padding: 30px 0; }
+    .page-break { page-break-before: always; }
+    .avoid-break { page-break-inside: avoid; }
+
+    /* ---------- TOC ---------- */
+    .toc { padding: 40px 0; }
+    .toc ol { list-style: none; counter-reset: toc; padding: 0; }
+    .toc > ol > li { counter-increment: toc; margin-bottom: 9px; }
+    .toc > ol > li > a { font-size: 15.5px; font-weight: 600; display: flex; align-items: baseline; gap: 12px; color: #0F172A; }
+    .toc > ol > li > a::before { content: counter(toc) "."; color: #0033AD; font-weight: 800; min-width: 26px; }
+    .toc > ol > li > ol { list-style: none; padding-left: 38px; margin-top: 5px; }
+    .toc > ol > li > ol > li { margin-bottom: 3px; }
+    .toc > ol > li > ol > li > a { font-size: 13.5px; color: #64748B; }
+
+    /* ---------- Tables ---------- */
+    table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 20px 0; font-size: 13.5px; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.06); }
+    thead th { background: #0033AD; color: #FFFFFF; font-weight: 600; padding: 11px 15px; text-align: left; font-size: 13px; }
+    tbody td { padding: 11px 15px; border-bottom: 1px solid #EEF2F7; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #F8FAFC; }
+    tbody tr:last-child td { border-bottom: none; }
+    table.compact { font-size: 13px; }
+    table.compact td, table.compact th { padding: 9px 13px; }
+
+    /* ---------- Callouts ---------- */
+    .callout { background: #E0E9FF; border-left: 4px solid #0033AD; border-radius: 0 10px 10px 0; padding: 18px 22px; margin: 22px 0; font-size: 14px; }
+    .callout p { margin-bottom: 8px; }
+    .callout p:last-child { margin-bottom: 0; }
+    .callout-title { font-weight: 700; color: #0033AD; display: block; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .callout-green { background: #E0F7EC; border-left-color: #16A34A; }
+    .callout-green .callout-title { color: #15803D; }
+    .callout-amber { background: #FEF3C7; border-left-color: #D97706; }
+    .callout-amber .callout-title { color: #B45309; }
+
+    /* ---------- Stat cards ---------- */
+    .stat-row { display: flex; gap: 16px; margin: 24px 0; flex-wrap: wrap; }
+    .stat-card { flex: 1; min-width: 150px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px; }
+    .stat-value { font-size: 26px; font-weight: 800; color: #0033AD; letter-spacing: -1px; }
+    .stat-value .accent { color: #16A34A; }
+    .stat-label { font-size: 12.5px; color: #64748B; margin-top: 2px; line-height: 1.4; }
+
+    /* ---------- Out of scope ---------- */
+    .out-of-scope { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px 24px; margin: 22px 0; }
+    .out-of-scope-item { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; font-size: 13.5px; }
+    .out-of-scope-item:last-child { margin-bottom: 0; }
+    .oos-x { color: #DC2626; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+
+    /* ---------- Badges ---------- */
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .badge-mvp { background: #E0F7EC; color: #15803D; }
+    .badge-p2 { background: #E0E9FF; color: #0033AD; }
+    .badge-p3 { background: #EDE9FE; color: #6D28D9; }
+    .badge-now { background: #FEF3C7; color: #B45309; }
+
+    /* ---------- Checklist ---------- */
+    .checklist { list-style: none; padding: 0; columns: 2; column-gap: 32px; }
+    .checklist li { margin-bottom: 8px; font-size: 13.5px; break-inside: avoid; display: flex; gap: 9px; align-items: baseline; }
+    .checklist .box { width: 15px; height: 15px; border: 2px solid #0033AD; border-radius: 4px; flex-shrink: 0; display: inline-block; }
+
+    /* ---------- Mermaid ---------- */
+    .diagram-wrap { margin: 18px 0; padding: 14px 16px; background: #FBFCFE; border: 1px solid #E8EDF5; border-radius: 14px; text-align: center; page-break-inside: avoid; }
+    .mermaid { text-align: center; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .diagram-caption { text-align: center; font-size: 12.5px; color: #64748B; margin-top: 10px; font-style: italic; }
+    .diagram-title { font-size: 13px; font-weight: 700; color: #0033AD; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+    /* ---------- Print ---------- */
+    @media print {
+      body { font-size: 12.5px; }
+      .cover { min-height: 980px; padding: 0 24px; page-break-after: always; display: flex; }
+      .toc { page-break-after: always; }
+      .page-break { page-break-before: always; }
+      h1, h2, h3, h4 { page-break-after: avoid; }
+      table, .callout, .out-of-scope, .stat-row, .diagram-wrap { page-break-inside: avoid; }
+      tr { page-break-inside: avoid; }
+      .diagram-wrap .mermaid svg { max-height: 640px; width: auto !important; }
+      .checklist li { page-break-inside: avoid; }
+      a { color: #0033AD; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-mark">🐍</div>
+    <div class="cover-logo"><span class="snek">Basi</span><span class="tools">lisk</span></div>
+    <div class="cover-pill">Product Requirements Document</div>
+    <div class="cover-subtitle">A Cardano On-Chain Analytics,<br>Portfolio &amp; Trading Platform</div>
+    <div class="cover-meta">Draft v0.1 &nbsp;&bull;&nbsp; June 2026</div>
+    <div class="cover-meta">Prepared by Wes Huber</div>
+  </div>
+  <div class="cover-confidential">Confidential &mdash; Internal Use Only</div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="container">
+  <div class="toc">
+    <h1>Table of Contents</h1>
+    <ol>
+      <li><a href="#exec">Executive Summary</a></li>
+      <li><a href="#background">Background &amp; Market Research</a>
+        <ol>
+          <li><a href="#tt-what">What TapTools Is</a></li>
+          <li><a href="#tt-model">TapTools Business Model</a></li>
+          <li><a href="#tt-api">API Endpoint Surface</a></li>
+          <li><a href="#tt-data">Data Sources &amp; How It Works</a></li>
+          <li><a href="#tt-comp">Competitive Landscape</a></li>
+        </ol>
+      </li>
+      <li><a href="#goals">Goals &amp; Non-Goals</a></li>
+      <li><a href="#users">Target Users &amp; Personas</a></li>
+      <li><a href="#scope">Product Scope &amp; Features</a></li>
+      <li><a href="#diff">Differentiation Strategy</a></li>
+      <li><a href="#arch">Technical Architecture</a></li>
+      <li><a href="#agents">The Agent Layer &mdash; A2A Trading &amp; x402</a>
+        <ol>
+          <li><a href="#agents">Why Agents Need Basilisk</a></li>
+          <li><a href="#agents">x402-Native API (Pay-Per-Call)</a></li>
+          <li><a href="#agents">Agent-to-Agent (A2A) Trading Rails</a></li>
+          <li><a href="#agents">Agent Identity, Reputation &amp; Safety</a></li>
+          <li><a href="#agents">MCP Server</a></li>
+        </ol>
+      </li>
+      <li><a href="#money">Monetization</a></li>
+      <li><a href="#metrics">Success Metrics</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#questions">Open Questions</a></li>
+      <li><a href="#parity">TapTools Parity Checklist</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ============ 1. EXEC SUMMARY ============ -->
+<div class="container">
+<div class="section page-break" id="exec">
+  <div class="eyebrow">Section 1</div>
+  <h1>1. Executive Summary</h1>
+  <p class="lead"><strong>Basilisk</strong> is an all-in-one analytics, portfolio-tracking, and trading platform for the Cardano blockchain. It targets the same job-to-be-done as <a href="https://www.taptools.io/">TapTools</a> &mdash; today's market leader &mdash; while differentiating on speed, price transparency, real-time data, trader-grade tooling, and an open developer API.</p>
+
+  <p>The name nods to the <strong>basilisk</strong> &mdash; the serpent-king of myth &mdash; keeping the Cardano "snek" lineage while evoking <strong>Roko's Basilisk</strong>, the AI thought experiment: a fitting emblem for an agent-native platform. The product spans three surfaces:</p>
+  <ul>
+    <li><strong>Web app</strong> &mdash; charts, portfolio, wallet profiling, market screeners, DeFi/NFT analytics, and in-app swaps.</li>
+    <li><strong>Public Data API</strong> &mdash; a paid REST + WebSocket API for developers, bots, and integrators.</li>
+    <li><strong>Mobile app + alerts</strong> &mdash; portfolio tracking, price/whale alerts, and push notifications.</li>
+  </ul>
+
+  <p>Crucially, the API is <strong>agent-native</strong>: pay-per-call via the <strong>x402</strong> micropayment protocol (no keys, no subscription) and queryable by LLM agents through an <strong>MCP server</strong> &mdash; turning Basilisk into the data and execution backbone for <strong>agent-to-agent (A2A) trading</strong> on Cardano (see &sect;8).</p>
+
+  <div class="callout">
+    <span class="callout-title">The Opportunity</span>
+    <p>TapTools is dominant but carries known friction: an <strong>NFT-gated subscription model</strong> that confuses non-crypto-native users, occasional data latency, and an API priced for enterprises. Basilisk can win the <strong>prosumer trader + builder</strong> segment with cleaner UX, real-time streaming data, transparent fiat pricing, and a generous free developer tier.</p>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-value">3</div>
+      <div class="stat-label">Product surfaces: web, API, mobile</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">&lt;<span class="accent">5s</span></div>
+      <div class="stat-label">On-chain data freshness target</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5+</div>
+      <div class="stat-label">DEX adapters at MVP (Minswap, Sundae, WingRiders, Muesli, VyFi)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">12<span class="accent">mo</span></div>
+      <div class="stat-label">To full-scale platform across 4 phases</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 2. BACKGROUND ============ -->
+<div class="section page-break" id="background">
+  <div class="eyebrow">Section 2</div>
+  <h1>2. Background &amp; Market Research</h1>
+
+  <h2 id="tt-what">2.1 What TapTools Is</h2>
+  <p>TapTools is the #1 token, NFT, and wallet tracking platform on Cardano. Its core surfaces define the parity bar Basilisk must meet or beat:</p>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Area</th><th>Capabilities</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Portfolio tracker</strong></td><td>Connect/watch multiple wallets; net worth in ADA/USD; value-over-time chart; holdings (tokens, NFTs, LP positions, debt/loans); trade history; P&amp;L.</td></tr>
+      <tr><td><strong>Token charts</strong></td><td>Price charts, last ~500 trades, token info, market-sentiment indicators, OHLCV.</td></tr>
+      <tr><td><strong>Market screeners</strong></td><td>Top 50 tokens, Top Gainers/Losers, volume leaders, trending.</td></tr>
+      <tr><td><strong>Wallet Profiler</strong> <span class="badge badge-p2">PRO</span></td><td>Deep-dive on any wallet: total &amp; liquid value, holdings breakdown, volume, activity patterns.</td></tr>
+      <tr><td><strong>Hot Wallets / smart money</strong></td><td>Track high-activity &amp; profitable wallets ("whale" watching).</td></tr>
+      <tr><td><strong>Token Distribution</strong></td><td>Holder concentration, top holders, supply distribution &mdash; for due diligence.</td></tr>
+      <tr><td><strong>DEX analytics</strong></td><td>TVL, APYs, liquidity across Minswap, SundaeSwap, WingRiders, MuesliSwap, VyFinance, etc.</td></tr>
+      <tr><td><strong>NFT analytics</strong></td><td>Collection stats, floor, sales history, listings, distribution.</td></tr>
+      <tr><td><strong>In-app swaps</strong></td><td>Swap aggregation so users don't leave the app.</td></tr>
+      <tr><td><strong>Alerts</strong></td><td>Wallet / balance / profit-change alerts.</td></tr>
+      <tr><td><strong>Public API</strong></td><td>Tiered REST API for tokens, NFTs, market, wallet, on-chain data.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="tt-model">2.2 TapTools Business Model</h2>
+  <ul>
+    <li><strong>PRO is NFT-gated.</strong> "Tappy" NFTs grant access &mdash; e.g. a 4,000-supply sale at <strong>420 ADA each</strong>; lifetime via 5 original Tappy NFTs; annual via a single Tappy02 NFT. Secondary-market pricing floats after the primary sale.</li>
+    <li><strong>Day passes:</strong> ~<strong>10 ADA for a 1-day PRO pass</strong>.</li>
+    <li><strong>API:</strong> separate developer subscription tiers; positioned as one of the most in-depth API services in the ecosystem.</li>
+    <li><strong>Quality thresholds:</strong> Top 50 requires &ge;1M ADA lifetime volume; Top Gainers requires &ge;5,000 ADA LP; NFT portfolio requires &ge;5,000 ADA lifetime volume.</li>
+  </ul>
+
+  <h2 id="tt-api">2.3 API Endpoint Surface (Parity Reference)</h2>
+  <p>The TapTools API is organized into the categories below; Basilisk should match or exceed each:</p>
+  <table class="compact">
+    <thead><tr><th style="width:20%">Category</th><th>Endpoints / Data</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Token</strong></td><td>price/quote, top tokens, market cap, volume stats, holder count, top holders, OHLCV, trades, price-change, links/metadata.</td></tr>
+      <tr><td><strong>NFT</strong></td><td>collection stats, floor, trades, listings, distribution, asset sales history, traits/rarity.</td></tr>
+      <tr><td><strong>Market</strong></td><td>aggregated stats: total volume, active addresses, holders, market-wide metrics.</td></tr>
+      <tr><td><strong>Wallet</strong></td><td>portfolio positions, token/NFT holdings, LP positions, trade history, value-over-time.</td></tr>
+      <tr><td><strong>On-chain / Integrations</strong></td><td>asset supply, block info, events, DEX pairs, protocol data.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="tt-data">2.4 Data Sources &amp; How It Works</h2>
+  <p>TapTools aggregates from Cardano DEXs (Minswap, SundaeSwap, WingRiders, MuesliSwap, VyFinance, Spectrum) and on-chain data &mdash; commonly paired with <a href="https://blockfrost.io/">Blockfrost</a> for chain access. Prices derive from DEX liquidity-pool reserves and swap transactions; portfolio valuation marks holdings to current pool prices.</p>
+
+  <h2 id="tt-comp">2.5 Competitive Landscape</h2>
+  <table class="compact">
+    <thead><tr><th>Product</th><th>Focus</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><strong>TapTools</strong></td><td>Analytics + portfolio + API</td><td>Market leader; NFT-gated PRO.</td></tr>
+      <tr><td><strong>DexHunter</strong></td><td>DEX aggregator</td><td>Routes the majority of Cardano on-chain swaps; strong execution + analytics.</td></tr>
+      <tr><td><strong>Cardanoscan</strong></td><td>Block explorer</td><td>Transactions, wallets, stake pools, assets.</td></tr>
+      <tr><td><strong>Cexplorer</strong></td><td>Explorer / analytics</td><td>By Vellum Labs; epochs, pools, assets.</td></tr>
+      <tr><td><strong>ADAStat / pool.pm</strong></td><td>Explorer / asset viz</td><td>Independent explorers; pool.pm for visual asset/wallet browsing.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout callout-green">
+    <span class="callout-title">The Gap Basilisk Exploits</span>
+    <p>Real-time streaming data, transparent fiat + crypto pricing (not NFT-gated), TradingView-class charting, a generous developer API, best-in-class smart-money / whale tooling, and deeper DeFi coverage (lending, liquid staking, yield).</p>
+  </div>
+</div>
+
+<!-- ============ 3. GOALS ============ -->
+<div class="section page-break" id="goals">
+  <div class="eyebrow">Section 3</div>
+  <h1>3. Goals &amp; Non-Goals</h1>
+
+  <h3>3.1 Goals</h3>
+  <ol>
+    <li>Achieve <strong>feature parity</strong> with TapTools' core analytics + portfolio surfaces by MVP.</li>
+    <li>Differentiate on <strong>real-time WebSocket data</strong>, <strong>fiat-transparent pricing</strong>, and <strong>trader UX</strong>.</li>
+    <li>Ship a <strong>developer API with a free tier</strong> to seed an ecosystem of bots and integrations.</li>
+    <li>Deliver sub-second chart loads and <strong>&lt;5s on-chain data freshness</strong>.</li>
+    <li>Build a sustainable revenue model: subscriptions + API + optional swap fees.</li>
+  </ol>
+
+  <h3>3.2 Non-Goals (v1)</h3>
+  <div class="out-of-scope">
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>Building our own DEX or AMM &mdash; we <strong>aggregate</strong>, not operate liquidity.</span></div>
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>Cross-chain support beyond Cardano (future consideration).</span></div>
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>Custodial wallet / fund custody &mdash; Basilisk is non-custodial, read-only + sign-via-wallet.</span></div>
+    <div class="out-of-scope-item"><span class="oos-x">&times;</span><span>A full tax-reporting engine (post-MVP integration / partner).</span></div>
+  </div>
+</div>
+
+<!-- ============ 4. USERS ============ -->
+<div class="section page-break" id="users">
+  <div class="eyebrow">Section 4</div>
+  <h1>4. Target Users &amp; Personas</h1>
+  <table class="compact">
+    <thead><tr><th style="width:22%">Persona</th><th>Needs</th><th style="width:26%">Key Features</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Active Trader</strong><br>"Degen Dan"</td><td>Fast charts, real-time prices, new-token discovery, swap execution, whale alerts.</td><td>Charts, screeners, in-app swap, alerts, smart-money.</td></tr>
+      <tr><td><strong>Long-Term Holder</strong><br>"HODL Hana"</td><td>Portfolio net worth, P&amp;L, staking/yield tracking, simple alerts.</td><td>Portfolio, DeFi positions, alerts.</td></tr>
+      <tr><td><strong>Project / SPO</strong><br>"Builder Bo"</td><td>Token distribution, holder analytics, liquidity health, embeddable widgets.</td><td>Token distribution, holder analytics, API.</td></tr>
+      <tr><td><strong>Developer / Bot</strong><br>"Dev Dee"</td><td>Reliable price/market/wallet API, WebSocket streams, great docs.</td><td>Public API, SDKs, webhooks.</td></tr>
+      <tr><td><strong>NFT Collector</strong><br>"Collector Cleo"</td><td>Floor tracking, collection analytics, rarity, NFT portfolio value.</td><td>NFT analytics, portfolio.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ 5. SCOPE ============ -->
+<div class="section page-break" id="scope">
+  <div class="eyebrow">Section 5</div>
+  <h1>5. Product Scope &amp; Features</h1>
+
+  <h2>5.1 MVP <span class="badge badge-mvp">Phase 1</span></h2>
+  <table class="compact">
+    <thead><tr><th style="width:26%">Feature</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A. Portfolio Tracker</strong></td><td>CIP-30 wallet connect (Eternl, Lace, Nami, Vespr, Typhon) read-only + optional sign-to-swap; multi-wallet &amp; watch-only; net worth in ADA + USD + user fiat; value-over-time; holdings across tokens, NFTs, LP, liquid-staking, lending; realized/unrealized P&amp;L; trade history.</td></tr>
+      <tr><td><strong>B. Token Charts</strong></td><td>TradingView-class candlesticks; OHLCV across timeframes; live DEX-aggregated (VWAP) price; streaming trades feed; token info (supply, mcap, FDV, liquidity, holders, links, policy ID); price-change, ATH/ATL.</td></tr>
+      <tr><td><strong>C. Market Screeners</strong></td><td>Top tokens by mcap/volume; Gainers/Losers; Trending; New listings; filters (liquidity, volume, age) with quality thresholds to suppress spam.</td></tr>
+      <tr><td><strong>D. Wallet Profiler / Smart Money</strong></td><td>Look up any address (total/liquid value, holdings, volume, activity, P&amp;L); curated smart-money lists; follow wallets; whale-trade feed.</td></tr>
+      <tr><td><strong>E. Token Distribution</strong></td><td>Top holders, concentration (Gini / top-10 %), supply distribution, LP-vs-wallet split.</td></tr>
+      <tr><td><strong>F. Alerts</strong></td><td>Price thresholds, % moves, whale buys/sells, balance changes, new LP/listing &mdash; via in-app, push, email, Telegram/Discord webhook.</td></tr>
+      <tr><td><strong>G. Public Data API (Beta)</strong></td><td>REST endpoints mirroring &sect;2.3; API keys; rate-limited free tier.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5.2 Phase 2 <span class="badge badge-p2">Trader + API</span></h2>
+  <ul>
+    <li><strong>In-app swaps</strong> via DEX-aggregator routing (best price across Minswap/SundaeSwap/WingRiders/&hellip;), non-custodial signing.</li>
+    <li><strong>WebSocket streaming API</strong> (live prices, trades, blocks).</li>
+    <li><strong>DeFi dashboard</strong>: TVL, APYs, yield/lending/liquid-staking positions across protocols.</li>
+    <li><strong>NFT analytics suite</strong>: floors, sales, listings, rarity, collection screeners.</li>
+    <li><strong>Mobile apps</strong> (iOS/Android) on React Native / Expo.</li>
+    <li><strong>Embeddable widgets</strong> (price cards, charts) for projects.</li>
+  </ul>
+
+  <h2>5.3 Phase 3+ <span class="badge badge-p3">Scale &amp; Moat</span></h2>
+  <ul>
+    <li>Copy-trading / strategy automation; bot marketplace.</li>
+    <li>Tax/accounting export &amp; partner integrations.</li>
+    <li>Advanced on-chain forensics (fund-flow graphs, cluster labeling).</li>
+    <li>AI assistant &mdash; natural-language queries over on-chain data via an MCP server.</li>
+    <li>Governance / Catalyst &amp; staking analytics.</li>
+  </ul>
+</div>
+
+<!-- ============ 6. DIFFERENTIATION ============ -->
+<div class="section page-break" id="diff">
+  <div class="eyebrow">Section 6</div>
+  <h1>6. Differentiation Strategy</h1>
+  <table class="compact">
+    <thead><tr><th style="width:18%">Lever</th><th>TapTools Today</th><th>Basilisk</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Pricing</strong></td><td>NFT-gated PRO (confusing for new users)</td><td>Transparent fiat + crypto subscriptions; NFT/token = perk, not requirement.</td></tr>
+      <tr><td><strong>Data freshness</strong></td><td>Periodic refresh; some latency</td><td>Real-time WebSocket streaming; &lt;5s freshness target.</td></tr>
+      <tr><td><strong>Developer API</strong></td><td>Premium, enterprise-leaning</td><td>Generous free tier + clean docs + SDKs to seed the ecosystem.</td></tr>
+      <tr><td><strong>Charting</strong></td><td>Good</td><td>TradingView-grade with drawing tools &amp; indicators.</td></tr>
+      <tr><td><strong>Smart money</strong></td><td>Hot wallets</td><td>Labeled clusters, follow + auto-alerts, PnL leaderboards.</td></tr>
+      <tr><td><strong>DeFi depth</strong></td><td>DEX / TVL focus</td><td>Lending, liquid staking, yield positions unified in portfolio.</td></tr>
+      <tr><td><strong>Onboarding</strong></td><td>Crypto-native</td><td>Email/social login option + watch-only first; wallet connect optional.</td></tr>
+      <tr><td><strong>Agent access</strong></td><td>Subscription + API-key gated</td><td><strong>x402 pay-per-call</strong> (no keys/signup) + MCP server &mdash; built for autonomous agents.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ 7. ARCHITECTURE ============ -->
+<div class="section page-break" id="arch">
+  <div class="eyebrow">Section 7</div>
+  <h1>7. Technical Architecture</h1>
+  <p>The hard part isn't the UI &mdash; it's the data pipeline. Three layers do the heavy lifting: <strong>chain ingestion</strong>, the <strong>pricing engine</strong>, and the <strong>real-time API</strong>.</p>
+
+  <h2>7.1 High-Level Architecture</h2>
+  <div class="diagram-wrap">
+    <div class="diagram-title">Figure 7.1 &mdash; System Overview</div>
+    <div class="mermaid">
+flowchart TB
+    subgraph Clients["Client Layer"]
+        direction LR
+        WEB["Web App<br/>Next.js"]
+        MOB["Mobile<br/>Expo"]
+        TP["3rd-party<br/>API consumers"]
+    end
+    subgraph Gateway["API Gateway / BFF"]
+        GW["Auth · Rate-limiting<br/>Caching · API keys"]
+    end
+    subgraph Services["Core Services"]
+        direction LR
+        PE["Pricing Engine<br/>VWAP · OHLCV"]
+        PF["Portfolio Svc<br/>Valuation · P&amp;L"]
+        AL["Alerts &amp; Notif<br/>Rules · Webhooks"]
+    end
+    subgraph Data["Data Layer"]
+        direction LR
+        TS["Time-series DB<br/>OHLCV · trades"]
+        PG["Postgres<br/>users · meta"]
+        RD["Redis<br/>cache · pub/sub"]
+    end
+    subgraph Ingest["Chain Ingestion"]
+        IDX["Cardano Node + Indexer<br/>Ogmios · Oura · Kupo"]
+        DEX["DEX Adapters<br/>Minswap · Sundae · WingRiders · Muesli · VyFi"]
+        FB["Blockfrost · Koios<br/>(fallback)"]
+    end
+
+    WEB --> GW
+    MOB --> GW
+    TP --> GW
+    GW --> PE
+    GW --> PF
+    GW --> AL
+    PE --> TS
+    PF --> PG
+    AL --> RD
+    PE --> RD
+    Data --> Ingest
+    IDX --> DEX
+    IDX --> FB
+
+    style Clients fill:#E0E9FF,stroke:#0033AD
+    style Gateway fill:#E0F7EC,stroke:#16A34A
+    style Services fill:#F1F5F9,stroke:#64748B
+    style Data fill:#FEF3C7,stroke:#D97706
+    style Ingest fill:#EDE9FE,stroke:#6D28D9
+    </div>
+    <div class="diagram-caption">Clients reach core services through a single gateway; services read from a shared data layer fed by the chain-ingestion tier.</div>
+  </div>
+
+  <h2>7.2 Chain Ingestion &amp; Pricing Pipeline</h2>
+  <div class="diagram-wrap">
+    <div class="diagram-title">Figure 7.2 &mdash; From Block to Price</div>
+    <div class="mermaid">
+flowchart LR
+    NODE["Cardano<br/>Node"] --> OG["Ogmios /<br/>Oura stream"]
+    OG --> DEC["DEX Adapters<br/>decode pool<br/>datums &amp; swaps"]
+    DEC --> RES["Reconstruct<br/>reserves +<br/>swap events"]
+    RES --> VWAP["VWAP across<br/>all pools<br/>(ADA base)"]
+    ORC["ADA/USD<br/>oracle"] --> VWAP
+    VWAP --> CANDLE["Build OHLCV<br/>candles"]
+    CANDLE --> TSDB[("Time-series<br/>DB")]
+    VWAP --> QF{"Quality<br/>filter"}
+    QF -->|"&ge; min liq &amp; vol"| LISTS["Screeners /<br/>Token lists"]
+    QF -->|"below"| DROP["Hidden<br/>(spam)"]
+    TSDB --> WS["WebSocket<br/>fan-out"]
+
+    style NODE fill:#EDE9FE,stroke:#6D28D9
+    style OG fill:#EDE9FE,stroke:#6D28D9
+    style DEC fill:#E0E9FF,stroke:#0033AD
+    style RES fill:#E0E9FF,stroke:#0033AD
+    style VWAP fill:#E0F7EC,stroke:#16A34A
+    style CANDLE fill:#E0F7EC,stroke:#16A34A
+    style TSDB fill:#FEF3C7,stroke:#D97706
+    style QF fill:#FFE4E6,stroke:#E11D48
+    style DROP fill:#FEE2E2,stroke:#DC2626
+    style LISTS fill:#F1F5F9,stroke:#64748B
+    style WS fill:#F1F5F9,stroke:#64748B
+    </div>
+    <div class="diagram-caption">DEX adapters are the highest-value, highest-maintenance work &mdash; each protocol represents pools differently on-chain.</div>
+  </div>
+
+  <h2>7.3 Component Responsibilities</h2>
+  <table class="compact">
+    <thead><tr><th style="width:24%">Layer</th><th>Responsibility &amp; Candidate Stack</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Chain ingestion</strong></td><td>Cardano node + chain-follower: <strong>Ogmios</strong> (node WS bridge) + <strong>Oura</strong> (event stream) for real-time; <strong>Kupo</strong> / Carp for queryable history; <strong>Blockfrost</strong> + <strong>Koios</strong> as managed fallback / cross-check.</td></tr>
+      <tr><td><strong>DEX adapters</strong></td><td>Decode pool scripts/datums per protocol to reconstruct reserves, swaps, LP mint/burn &rarr; derive price &amp; liquidity. The core moat.</td></tr>
+      <tr><td><strong>Pricing engine</strong></td><td>Volume-weighted price across pools (ADA base + ADA/USD oracle); OHLCV candles persisted in TimescaleDB / ClickHouse; spam/quality filters.</td></tr>
+      <tr><td><strong>Portfolio service</strong></td><td>Resolve UTxOs &rarr; native-asset balances, NFTs, LP tokens (decoded to underlying), staking/lending positions; mark-to-market; P&amp;L from trade reconstruction.</td></tr>
+      <tr><td><strong>Real-time layer</strong></td><td>Redis pub/sub (or NATS/Kafka) fanning chain events to a WebSocket service for live prices, trades, portfolio deltas.</td></tr>
+      <tr><td><strong>API &amp; auth</strong></td><td>REST (&sect;2.3 parity) + WebSocket + optional GraphQL; API keys with per-tier limits + metering; email/social + CIP-30 sign-in-with-wallet.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7.4 Suggested Stack</h2>
+  <p><strong>Frontend:</strong> Next.js (web) + React Native/Expo (mobile); TradingView Charting Library / lightweight-charts. &nbsp;<strong>Backend:</strong> TypeScript (NestJS) or Go for perf-critical ingestion; Rust for DEX decoders if needed. &nbsp;<strong>Data:</strong> Postgres, TimescaleDB/ClickHouse, Redis. &nbsp;<strong>Infra:</strong> Kubernetes; the node + indexer is the main ops cost.</p>
+
+  <div class="callout callout-amber">
+    <span class="callout-title">Key Technical Risks</span>
+    <p><strong>DEX decoder maintenance</strong> &mdash; protocols upgrade scripts; adapters need active upkeep. <strong>Data accuracy</strong> &mdash; low-liquidity tokens produce noisy prices, needing robust outlier handling. <strong>Node/indexer ops</strong> &mdash; mitigate early by leaning on Blockfrost/Koios while building in-house. <strong>Scale</strong> &mdash; real-time fan-out to many WebSocket clients.</p>
+  </div>
+</div>
+
+<!-- ============ 8. AGENT LAYER ============ -->
+<div class="section page-break" id="agents">
+  <div class="eyebrow">Section 8</div>
+  <h1>8. The Agent Layer &mdash; A2A Trading &amp; x402</h1>
+  <p class="lead">AI agents are becoming first-class market participants on Cardano. They need the same three things humans get from Basilisk &mdash; <strong>data, discovery, and execution</strong> &mdash; but in machine-native form: programmatic, pay-per-use, and trustless. The Agent Layer turns Basilisk into the data and execution backbone for <strong>agent-to-agent (A2A) trading</strong>, monetized natively via the <strong>x402</strong> micropayment protocol.</p>
+
+  <h2>8.1 Why Agents Need Basilisk</h2>
+  <p>Agents trading on Cardano today are forced through DEX UIs or raw RPC &mdash; running their own infra and stitching pricing together by hand. Basilisk already computes the hard parts: VWAP pricing, OHLCV, liquidity, smart-money signals, and aggregated swap routes. The Agent Layer simply exposes that as an agent-native interface. Critically, TapTools' API is <strong>subscription- and API-key-gated</strong> &mdash; friction an autonomous agent can't clear (no human to sign up for a SaaS plan with a credit card). Basilisk removes that gate entirely.</p>
+
+  <h2>8.2 x402-Native API (Pay-Per-Call)</h2>
+  <p><strong>x402</strong> is an HTTP-native payment standard (built on the dormant <code>HTTP 402 Payment Required</code> status, originated by Coinbase). The flow: an agent hits an endpoint, receives a <code>402</code> with payment details, settles a micro-amount on-chain, and retries with proof of payment to receive the data. <strong>No account, no API key, no subscription.</strong> Basilisk runs an x402 facilitator/paywall in front of the data API so every call self-settles for a fraction of a cent.</p>
+
+  <div class="diagram-wrap">
+    <div class="diagram-title">Figure 8.1 &mdash; x402 Pay-Per-Call Flow</div>
+    <div class="mermaid">
+sequenceDiagram
+    participant AG as Trading Agent
+    participant API as Basilisk API
+    participant FAC as x402 Facilitator
+    participant CH as Cardano
+
+    AG->>API: GET /token/price (no key)
+    API-->>AG: 402 Payment Required<br/>price · pay-to address · nonce
+    AG->>CH: Submit micropayment
+    AG->>API: Retry + payment proof
+    API->>FAC: Verify settlement
+    FAC-->>API: Confirmed
+    API-->>AG: 200 OK · VWAP + OHLCV + liquidity
+    Note over AG,API: No signup · no API key · usage-perfect billing
+    </div>
+    <div class="diagram-caption">Agents pay only for the calls they make &mdash; zero onboarding, no idle subscription cost.</div>
+  </div>
+
+  <p>This lets a <strong>three-tier access model</strong> coexist, each serving a different consumer:</p>
+  <table class="compact">
+    <thead><tr><th style="width:22%">Tier</th><th style="width:24%">Who</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Free</strong></td><td>Hobbyists, evaluation</td><td>Rate-limited public endpoints, no payment.</td></tr>
+      <tr><td><strong>x402 pay-per-call</strong> <span class="badge badge-p2">Agent-native</span></td><td>Autonomous agents &amp; bots</td><td>Micropayment per request; no signup, no key &mdash; settles on-chain.</td></tr>
+      <tr><td><strong>Subscription</strong></td><td>Humans, teams, enterprises</td><td>Flat monthly fiat/ADA rate with API key; predictable cost at volume.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8.3 Agent-to-Agent (A2A) Trading Rails</h2>
+  <p>With pricing and execution exposed, Basilisk becomes the layer agents use to trade <strong>with each other</strong>:</p>
+  <ul>
+    <li><strong>Price discovery</strong> &mdash; real-time VWAP, liquidity depth, and smart-money signals via the x402 API / MCP server.</li>
+    <li><strong>Execution</strong> &mdash; the Phase 2 swap aggregator is callable programmatically; agents route and settle on-chain at best price.</li>
+    <li><strong>Optional A2A quote layer</strong> &mdash; market-maker agents post buy/sell quotes (tighter than pool spreads) that other agents or humans take, settled trustlessly via a Cardano Plutus escrow contract. Cardano's deterministic, no-public-mempool model means <strong>no sandwich/MEV extraction</strong> by construction.</li>
+  </ul>
+
+  <div class="diagram-wrap">
+    <div class="diagram-title">Figure 8.2 &mdash; Agent Market-Making &amp; A2A Settlement</div>
+    <div class="mermaid">
+sequenceDiagram
+    participant ST as Basilisk Data<br/>(x402)
+    participant MM as Market-Maker Agent
+    participant BOOK as A2A Quote Layer
+    participant ESC as Cardano Escrow
+    participant CP as Counterparty
+
+    loop Every price tick
+        ST->>MM: VWAP SNEK/ADA + liquidity
+        MM->>MM: Compute spread
+        MM->>BOOK: Post buy &amp; sell quotes<br/>(tighter than pool)
+    end
+    CP->>BOOK: Take sell quote
+    CP->>ESC: Lock payment
+    MM->>ESC: Lock tokens
+    ESC->>ESC: Atomic settle — no MEV
+    ESC-->>CP: Receive tokens
+    ESC-->>MM: Receive ADA + spread
+    </div>
+    <div class="diagram-caption">Basilisk is the reference price; settlement is peer-to-peer via escrow &mdash; Basilisk never holds funds or operates a pool.</div>
+  </div>
+
+  <h2>8.4 Agent Identity, Reputation &amp; Safety</h2>
+  <ul>
+    <li><strong>First-class agent wallets</strong> &mdash; agent PnL leaderboards (extending smart-money), labeled agent clusters, and per-agent activity feeds.</li>
+    <li><strong>Identity</strong> &mdash; optional agent handles via ADA Handle (<code>$handle</code>) plus on-chain reputation accrued from settled trades.</li>
+    <li><strong>Safety rails</strong> &mdash; per-key spend caps, request rate limits, and a stale-price circuit-breaker that pauses an agent if reference data is older than a threshold.</li>
+  </ul>
+
+  <h2>8.5 MCP Server</h2>
+  <p>An <strong>MCP server</strong> wraps the x402 API so LLM agents (Claude and others) can query Basilisk with natural-language and structured tools &mdash; "what's the 24h VWAP and top holders for SNEK?" &mdash; and pay per call transparently. This makes Basilisk the default Cardano data source for the agent ecosystem.</p>
+
+  <div class="callout callout-amber">
+    <span class="callout-title">Scope Honesty</span>
+    <p>The x402 API, MCP server, and agent analytics are aligned with our "aggregate, don't operate liquidity" non-goal &mdash; Basilisk serves data and routes swaps but never custodies funds. The <strong>optional A2A quote layer (8.3)</strong> edges toward operating a venue; it is explicitly <strong>Phase 3 and opt-in</strong>, settles peer-to-peer via escrow (not a pool), and is gated on the open questions in &sect;12.</p>
+  </div>
+</div>
+
+<!-- ============ 9. MONETIZATION ============ -->
+<div class="section page-break" id="money">
+  <div class="eyebrow">Section 9</div>
+  <h1>9. Monetization</h1>
+  <table class="compact">
+    <thead><tr><th style="width:24%">Stream</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Consumer subscription</strong></td><td>Free / <strong>Pro</strong> / <strong>Trader</strong> tiers in transparent fiat + ADA. Optional NFT / <code>$BSL</code>-holder perks (discount/access) &mdash; a perk, not the only path.</td></tr>
+      <tr><td><strong>Day pass</strong></td><td>Low-cost short-term access (match/beat TapTools' ~10 ADA day pass).</td></tr>
+      <tr><td><strong>Developer API</strong></td><td>Free (low rate limit) &rarr; Basic &rarr; Pro &rarr; Enterprise, metered by req/min + features (WebSocket, history depth).</td></tr>
+      <tr><td><strong>Agent API (x402)</strong></td><td>Pay-per-call micropayments from autonomous agents &mdash; usage-perfect revenue with zero onboarding (&sect;8.2).</td></tr>
+      <tr><td><strong>Swap fees</strong></td><td>Small bps fee on aggregated swaps, including agent-routed execution (Phase 2).</td></tr>
+      <tr><td><strong>White-label / widgets</strong></td><td>Embeds &amp; data licensing for projects and exchanges.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout callout-green">
+    <span class="callout-title">Pricing Principle</span>
+    <p>Lead with <strong>fiat clarity</strong> to capture the users TapTools' NFT-gating confuses. Use a native token/NFT for <strong>loyalty perks and discounts</strong> &mdash; never as the paywall.</p>
+  </div>
+</div>
+
+<!-- ============ 9. METRICS ============ -->
+<div class="section page-break" id="metrics">
+  <div class="eyebrow">Section 10</div>
+  <h1>10. Success Metrics (KPIs)</h1>
+  <table class="compact">
+    <thead><tr><th style="width:24%">Category</th><th>Metrics</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Acquisition</strong></td><td>WAU/MAU, wallets connected/watched, sign-ups.</td></tr>
+      <tr><td><strong>Engagement</strong></td><td>Charts viewed, screeners used, alerts created, API calls/day.</td></tr>
+      <tr><td><strong>Data quality</strong></td><td>Price freshness (p95 latency), uptime, # DEXs/protocols covered, token coverage vs. TapTools.</td></tr>
+      <tr><td><strong>Monetization</strong></td><td>Paid conversion %, MRR, API revenue, ARPU.</td></tr>
+      <tr><td><strong>Developer ecosystem</strong></td><td>Active API keys, third-party apps built on Basilisk.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <span class="callout-title">North-Star Metric</span>
+    <p><strong>Daily active wallets tracked</strong> &mdash; it combines reach and stickiness in a single number.</p>
+  </div>
+</div>
+
+<!-- ============ 10. ROADMAP ============ -->
+<div class="section page-break" id="roadmap">
+  <div class="eyebrow">Section 11</div>
+  <h1>11. Roadmap</h1>
+  <div class="diagram-wrap">
+    <div class="diagram-title">Figure 11.1 &mdash; Indicative 12-Month Plan</div>
+    <div class="mermaid">
+gantt
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b
+    todayMarker off
+    section Phase 0 — Foundations
+    Chain ingestion + pricing MVP (2 DEXs)   :p0, 2026-07-01, 60d
+    section Phase 1 — MVP Web
+    Portfolio · charts · screeners · profiler :p1, after p0, 90d
+    Alerts + API beta · more DEX adapters     :p1b, after p0, 90d
+    section Phase 2 — Trader + API
+    WebSocket streaming · in-app swaps        :p2, after p1, 90d
+    x402 agent API · DeFi/NFT · mobile · tiers:p2b, after p1, 90d
+    section Phase 3 — Scale &amp; Moat
+    MCP · A2A rails · smart-money · copy-trade:p3, after p2, 120d
+    </div>
+    <div class="diagram-caption">Each phase ships a usable surface; the node/indexer build de-risks early via managed fallbacks.</div>
+  </div>
+
+  <table class="compact">
+    <thead><tr><th>Phase</th><th style="width:16%">Timeline</th><th>Deliverables</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-now">0 — Foundations</span></td><td>Month 0&ndash;2</td><td>Chain ingestion (Blockfrost/Koios + Ogmios/Oura), pricing engine MVP for Minswap + SundaeSwap, Postgres/Timescale.</td></tr>
+      <tr><td><span class="badge badge-mvp">1 — MVP Web</span></td><td>Month 2&ndash;5</td><td>Portfolio, charts, screeners, wallet profiler, basic alerts, API beta; more DEX adapters.</td></tr>
+      <tr><td><span class="badge badge-p2">2 — Trader + API</span></td><td>Month 5&ndash;8</td><td>WebSocket streaming, in-app swaps, <strong>x402 agent API beta</strong>, DeFi dashboard, NFT analytics, mobile beta, paid tiers.</td></tr>
+      <tr><td><span class="badge badge-p3">3 — Scale &amp; Moat</span></td><td>Month 8&ndash;12+</td><td><strong>MCP server, A2A trading rails</strong>, smart-money/agent clustering, embeds/white-label, copy-trading, tax partners.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ 11. OPEN QUESTIONS ============ -->
+<div class="section page-break" id="questions">
+  <div class="eyebrow">Section 12</div>
+  <h1>12. Open Questions</h1>
+  <ol>
+    <li><strong>Token/NFT:</strong> launch a native Basilisk token/NFT (e.g. <code>$BSL</code>) for perks, or stay fiat-only at launch?</li>
+    <li><strong>Swap routing:</strong> build our own aggregator or partner with DexHunter for execution?</li>
+    <li><strong>Indexer build vs. buy:</strong> how long do we lean on Blockfrost/Koios before full in-house indexing?</li>
+    <li><strong>x402 settlement asset:</strong> settle micropayments in ADA, a Cardano-native stablecoin (USDM/iUSD), or USDC on Base for cross-chain agents? Build our own facilitator or adopt an existing x402 facilitator?</li>
+    <li><strong>A2A venue boundary:</strong> does an agent quote/offer book (&sect;8.3) cross our "don't operate liquidity" non-goal &mdash; and if so, do we ship it as a separate product?</li>
+    <li><strong>Data licensing:</strong> pursue B2B data feeds (exchanges, CMC/CoinGecko-style) as an early revenue line?</li>
+    <li><strong>Brand/legal:</strong> confirm "Basilisk" name/trademark availability &mdash; it's a common mythological term, so check for crypto-name clashes and domain/handle availability.</li>
+  </ol>
+</div>
+
+<!-- ============ 12. PARITY CHECKLIST ============ -->
+<div class="section page-break" id="parity">
+  <div class="eyebrow">Section 13</div>
+  <h1>13. TapTools Parity Checklist</h1>
+  <ul class="checklist">
+    <li><span class="box"></span>Multi-wallet portfolio (ADA/USD, value-over-time, P&amp;L)</li>
+    <li><span class="box"></span>Token holdings / NFT / LP / loans</li>
+    <li><span class="box"></span>Token price charts + OHLCV + recent trades</li>
+    <li><span class="box"></span>Top 50 / Gainers / Trending screeners</li>
+    <li><span class="box"></span>Wallet Profiler (any-address deep-dive)</li>
+    <li><span class="box"></span>Hot wallets / smart money</li>
+    <li><span class="box"></span>Token distribution / top holders</li>
+    <li><span class="box"></span>DEX analytics (TVL / APY / liquidity)</li>
+    <li><span class="box"></span>NFT collection analytics</li>
+    <li><span class="box"></span>In-app swaps</li>
+    <li><span class="box"></span>Alerts (price / whale / balance)</li>
+    <li><span class="box"></span>Public API (token/NFT/market/wallet)</li>
+    <li><span class="box"></span>Day pass + subscription tiers</li>
+    <li><span class="box"></span>WebSocket streaming (differentiator)</li>
+    <li><span class="box"></span>x402 pay-per-call API (differentiator)</li>
+    <li><span class="box"></span>MCP server for agents (differentiator)</li>
+    <li><span class="box"></span>A2A trading rails (differentiator)</li>
+  </ul>
+</div>
+
+<!-- ============ SOURCES ============ -->
+<div class="section page-break" id="sources">
+  <div class="eyebrow">Appendix</div>
+  <h1>Sources</h1>
+  <ul>
+    <li>TapTools &mdash; <a href="https://www.taptools.io/">home</a> &middot; <a href="https://www.taptools.io/portfolio">portfolio</a></li>
+    <li>TapTools API &mdash; <a href="https://openapi.taptools.io/">docs</a> &middot; <a href="https://www.taptools.io/openapi/subscription">API subscription</a></li>
+    <li>TapTools &mdash; <a href="https://taptools.gitbook.io/taptools/faq">GitBook FAQ</a></li>
+    <li>Cardano Forum &mdash; <a href="https://forum.cardano.org/t/taptools-io-pro-features-advanced-guide/119014">TapTools PRO features guide</a></li>
+    <li>Cardano.org &mdash; <a href="https://cardano.org/apps/taptools/">TapTools listing</a></li>
+    <li>CoinGape &mdash; <a href="https://coingape.com/education/taptools-on-the-cardano-blockchain/">TapTools explainer</a></li>
+    <li>Similarweb &mdash; <a href="https://www.similarweb.com/website/taptools.io/competitors/">taptools.io competitors</a></li>
+    <li>Blockfrost &mdash; <a href="https://blockfrost.io/">Cardano API</a></li>
+    <li>Coinbase &mdash; <a href="https://github.com/coinbase/x402">x402 protocol</a> (HTTP-native micropayments)</li>
+  </ul>
+  <hr>
+  <p style="text-align:center;color:#94A3B8;font-size:12.5px;">Basilisk PRD &middot; Draft v0.1 &middot; June 2026 &middot; Confidential</p>
+</div>
+
+</div><!-- /container -->
+</body>
+</html>
