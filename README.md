@@ -65,3 +65,15 @@ npm run dev:web         # start the web app
 ## 📋 Tracking
 
 Work is tracked as GitHub Issues (one per user story, `US-x.y`) on the Basilisk Project board, grouped by epic and milestone.
+
+## 🔒 CI & branch protection
+
+`main` is protected by a **repository ruleset** (server-side, no bypass):
+
+- Direct pushes are blocked — all changes go through a **pull request**.
+- The **`build`** CI check must pass, and the branch must be **up to date** with `main`.
+- **Linear history** (squash/rebase) and **conversation resolution** required; no force-push or branch deletion.
+
+A local **pre-push hook** (`scripts/git-hooks/pre-push`, auto-activated by `npm install`) blocks accidental direct pushes before they leave your machine.
+
+**Deployment environments:** `staging` (any branch) and `production` (main-only, reviewer-gated). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full flow and `gh secret set` commands.
