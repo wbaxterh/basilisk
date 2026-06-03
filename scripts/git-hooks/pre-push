@@ -1,0 +1,18 @@
+#!/bin/sh
+# Blocks direct pushes to the protected branch. Use a feature branch + PR instead.
+# Activated via `git config core.hooksPath scripts/git-hooks` (run by `npm install`).
+# Bypass in a genuine emergency with `git push --no-verify`.
+
+protected="main"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/"$protected")
+      echo "✋ Direct pushes to '$protected' are blocked."
+      echo "   Open a PR from a feature branch:"
+      echo "     git switch -c feat/US-x.y-slug"
+      echo "     git push -u origin HEAD   # then open a PR"
+      exit 1
+      ;;
+  esac
+done
+exit 0
