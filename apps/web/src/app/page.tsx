@@ -1,11 +1,36 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { fetchStats } from "../lib/api";
+
+interface Stats {
+  latestBlock: { height: number; epoch: number; timestamp: number } | null;
+  transactions24h: number;
+  dexVolumeLovelace24h: string;
+}
+
 export default function Home() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [apiOnline, setApiOnline] = useState(false);
+
+  useEffect(() => {
+    fetchStats()
+      .then((data) => {
+        setStats(data);
+        setApiOnline(true);
+      })
+      .catch(() => setApiOnline(false));
+  }, []);
+
+  const epoch = stats?.latestBlock?.epoch ?? "—";
+  const txCount = apiOnline ? stats?.transactions24h?.toLocaleString() ?? "—" : "—";
+  const dexVol = apiOnline
+    ? formatLovelace(stats?.dexVolumeLovelace24h ?? "0")
+    : "—";
+
   return (
     <div>
-      <h1 style={{
-        fontSize: 28,
-        fontWeight: 700,
-        marginBottom: 4,
-      }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
         Dashboard
       </h1>
       <p style={{
@@ -14,6 +39,18 @@ export default function Home() {
         marginBottom: 24,
       }}>
         Cardano market overview and portfolio summary.
+        {!apiOnline && (
+          <span style={{
+            marginLeft: 12,
+            fontSize: 12,
+            padding: "2px 8px",
+            borderRadius: "var(--radius-sm)",
+            background: "rgba(245, 158, 11, 0.1)",
+            color: "var(--color-warning)",
+          }}>
+            API offline — showing placeholder data
+          </span>
+        )}
       </p>
 
       {/* Stat cards */}
@@ -25,8 +62,8 @@ export default function Home() {
       }}>
         <StatCard label="ADA Price" value="$0.74" change="+2.3%" positive />
         <StatCard label="Market Cap" value="$26.1B" change="+1.8%" positive />
-        <StatCard label="24h Volume" value="$412M" change="-5.1%" positive={false} />
-        <StatCard label="Epoch" value="523" sublabel="3d 14h remaining" />
+        <StatCard label="24h DEX Volume" value={dexVol} />
+        <StatCard label="Epoch" value={String(epoch)} sublabel={`${txCount} txs (24h)`} />
       </div>
 
       {/* Two-column layout */}
@@ -54,7 +91,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Recent Activity */}
+        {/* Network Activity */}
         <div style={{
           background: "var(--color-bg-elevated)",
           borderRadius: "var(--radius-lg)",
@@ -65,16 +102,22 @@ export default function Home() {
             Network Activity
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <ActivityRow label="Transactions (24h)" value="89,412" />
-            <ActivityRow label="Active Addresses" value="42,891" />
-            <ActivityRow label="DEX Volume (24h)" value="12.4M ADA" />
-            <ActivityRow label="Total Value Locked" value="312M ADA" />
-            <ActivityRow label="Avg Block Time" value="20.1s" />
+            <ActivityRow label="Transactions (24h)" value={txCount} />
+            <ActivityRow label="DEX Volume (24h)" value={dexVol} />
+            <ActivityRow label="Latest Block" value={stats?.latestBlock?.height?.toLocaleString() ?? "—"} />
+            <ActivityRow label="Epoch" value={String(epoch)} />
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function formatLovelace(lovelace: string): string {
+  const ada = Number(lovelace) / 1_000_000;
+  if (ada >= 1_000_000) return `${(ada / 1_000_000).toFixed(1)}M ADA`;
+  if (ada >= 1_000) return `${(ada / 1_000).toFixed(1)}K ADA`;
+  return `${ada.toFixed(0)} ADA`;
 }
 
 function StatCard({ label, value, change, sublabel, positive }: {
@@ -90,7 +133,6 @@ function StatCard({ label, value, change, sublabel, positive }: {
       borderRadius: "var(--radius-lg)",
       border: "1px solid var(--color-border)",
       padding: "16px 20px",
-      transition: "border-color 0.15s",
     }}>
       <div style={{
         fontSize: 12,
@@ -103,11 +145,7 @@ function StatCard({ label, value, change, sublabel, positive }: {
         {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: "var(--color-text-primary)",
-        }}>
+        <span style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-primary)" }}>
           {value}
         </span>
         {change && (
@@ -121,11 +159,7 @@ function StatCard({ label, value, change, sublabel, positive }: {
         )}
       </div>
       {sublabel && (
-        <div style={{
-          fontSize: 12,
-          color: "var(--color-text-muted)",
-          marginTop: 4,
-        }}>
+        <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
           {sublabel}
         </div>
       )}
@@ -134,55 +168,20 @@ function StatCard({ label, value, change, sublabel, positive }: {
 }
 
 function TokenRow({ rank, name, price, change, positive }: {
-  rank: number;
-  name: string;
-  price: string;
-  change: string;
-  positive: boolean;
+  rank: number; name: string; price: string; change: string; positive: boolean;
 }) {
   return (
     <div style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "8px 12px",
-      borderRadius: "var(--radius-md)",
-      background: "var(--color-bg-hover)",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "8px 12px", borderRadius: "var(--radius-md)", background: "var(--color-bg-hover)",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{
-          fontSize: 12,
-          color: "var(--color-text-muted)",
-          width: 20,
-          textAlign: "center" as const,
-        }}>
-          {rank}
-        </span>
-        <span style={{
-          fontSize: 14,
-          fontWeight: 600,
-          fontFamily: "var(--font-mono)",
-        }}>
-          {name}
-        </span>
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)", width: 20, textAlign: "center" as const }}>{rank}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{name}</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        <span style={{
-          fontSize: 13,
-          color: "var(--color-text-secondary)",
-          fontFamily: "var(--font-mono)",
-        }}>
-          {price} ADA
-        </span>
-        <span style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: positive ? "var(--color-positive)" : "var(--color-negative)",
-          minWidth: 60,
-          textAlign: "right" as const,
-        }}>
-          {change}
-        </span>
+        <span style={{ fontSize: 13, color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>{price} ADA</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: positive ? "var(--color-positive)" : "var(--color-negative)", minWidth: 60, textAlign: "right" as const }}>{change}</span>
       </div>
     </div>
   );
@@ -191,23 +190,11 @@ function TokenRow({ rank, name, price, change, positive }: {
 function ActivityRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "8px 12px",
-      borderRadius: "var(--radius-md)",
-      background: "var(--color-bg-hover)",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "8px 12px", borderRadius: "var(--radius-md)", background: "var(--color-bg-hover)",
     }}>
-      <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: 14,
-        fontWeight: 600,
-        fontFamily: "var(--font-mono)",
-      }}>
-        {value}
-      </span>
+      <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{value}</span>
     </div>
   );
 }
