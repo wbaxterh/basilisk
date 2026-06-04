@@ -14,5 +14,10 @@
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "@types/node": "^20.11.0"
+  },
+  "dependencies": {
+    "@basilisk/shared": "*",
+    "@basilisk/chain-data": "*",
+    "postgres": "^3.4.0"
   }
 }
