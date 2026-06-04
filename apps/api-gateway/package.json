@@ -3,16 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "API gateway / BFF \u2014 auth, rate-limiting, caching, API keys, and the public Data API.",
+  "description": "API gateway / BFF — auth, rate-limiting, caching, API keys, and the public Data API.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "@types/node": "^20.11.0"
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@basilisk/shared": "*",
+    "@fastify/cors": "^11.2.0",
+    "fastify": "^5.8.5",
+    "postgres": "^3.4.9"
   }
 }
