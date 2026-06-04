@@ -1,0 +1,38 @@
+version: "3.9"
+
+# Basilisk local dev stack.
+# Usage: docker compose up -d db   (just the database)
+#        docker compose up          (full stack)
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: basilisk-db
+    environment:
+      POSTGRES_USER: basilisk
+      POSTGRES_PASSWORD: basilisk_dev
+      POSTGRES_DB: basilisk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/home/postgres/pgdata/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U basilisk"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: basilisk-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
