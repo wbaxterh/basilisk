@@ -7,6 +7,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Basilisk — Cardano Analytics",
   description: "Cardano on-chain analytics, portfolio & trading platform.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

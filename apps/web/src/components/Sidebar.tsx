@@ -10,6 +10,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { label: "Dashboard", href: "/", icon: "home" },
   { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
   { label: "Tokens", href: "/tokens", icon: "chart" },
   { label: "Screener", href: "/screener", icon: "search" },
@@ -23,6 +24,8 @@ function NavIcon({ name }: { name: string }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
   switch (name) {
+    case "home":
+      return <svg {...common}><path d="M3 12l9-9 9 9" /><path d="M9 21V12h6v9" /><rect x="5" y="12" width="14" height="9" rx="1" /></svg>;
     case "briefcase":
       return <svg {...common}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>;
     case "chart":
@@ -76,7 +79,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav style={{ flex: 1, padding: "12px 8px" }}>
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
