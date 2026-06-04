@@ -24,6 +24,8 @@
   },
   "dependencies": {
     "@basilisk/shared": "*",
-    "@blockfrost/blockfrost-js": "^6.1.1"
+    "@blockfrost/blockfrost-js": "^6.1.1",
+    "@cardano-ogmios/client": "^6.14.0",
+    "@cardano-ogmios/schema": "^6.14.0"
   }
 }
