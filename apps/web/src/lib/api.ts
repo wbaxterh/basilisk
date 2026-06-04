@@ -107,3 +107,31 @@ export async function fetchToken(asset: string): Promise<TokenData | null> {
     return null;
   }
 }
+
+// -- Portfolio / Wallet --
+
+interface HoldingData {
+  asset: string;
+  quantity: string;
+  valueAda: string;
+  valueUsd: string | null;
+  avgCostAda: string | null;
+}
+
+interface WalletHoldingsResponse {
+  data: HoldingData[];
+  meta: { stakeAddress: string; tracked: boolean };
+}
+
+export async function fetchWalletHoldings(stakeAddress: string): Promise<WalletHoldingsResponse> {
+  return fetchApi<WalletHoldingsResponse>(`/api/wallets/${encodeURIComponent(stakeAddress)}/holdings`);
+}
+
+export async function trackWallet(stakeAddress: string, label?: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/wallets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stakeAddress, label }),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+}

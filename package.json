@@ -16,6 +16,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev:api": "npm run dev --workspace apps/api-gateway",
     "dev:web": "npm run dev --workspace apps/web",
+    "db:up": "docker compose up -d db redis",
+    "db:down": "docker compose down",
     "db:migrate": "bash db/migrate.sh",
     "docs:pdf": "npm run generate --workspace docs",
     "prepare": "git config core.hooksPath scripts/git-hooks 2>/dev/null || true"
