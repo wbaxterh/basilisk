@@ -18,6 +18,8 @@
   "dependencies": {
     "@basilisk/shared": "*",
     "@basilisk/chain-data": "*",
+    "@cardano-ogmios/client": "*",
+    "@cardano-ogmios/schema": "*",
     "postgres": "^3.4.0"
   }
 }
