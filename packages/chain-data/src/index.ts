@@ -14,3 +14,5 @@ export { BlockfrostProvider } from "./providers/blockfrost.js";
 export type { BlockfrostConfig } from "./providers/blockfrost.js";
 export { KupmiosProvider } from "./providers/kupmios.js";
 export type { KupmiosConfig } from "./providers/kupmios.js";
+export { FailoverProvider } from "./providers/failover.js";
+export type { FailoverConfig } from "./providers/failover.js";

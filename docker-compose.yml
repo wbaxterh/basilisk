@@ -1,8 +1,9 @@
 version: "3.9"
 
 # Basilisk local dev stack.
-# Usage: docker compose up -d db   (just the database)
-#        docker compose up          (full stack)
+# Usage: docker compose up -d db          (just the database)
+#        docker compose up -d             (full infra stack)
+#        docker compose --profile cardano up -d  (with Ogmios + Kupo chain sync)
 
 services:
   db:
@@ -34,5 +35,56 @@ services:
       timeout: 3s
       retries: 5
 
+  # Cardano chain data (opt-in via --profile cardano)
+  # Connects to a public preprod relay — no local node needed.
+  ogmios:
+    image: cardanosolutions/ogmios:latest
+    container_name: basilisk-ogmios
+    profiles: ["cardano"]
+    command: >
+      --host 0.0.0.0
+      --node-socket /dev/null
+      --node-config /dev/null
+    environment:
+      CARDANO_NODE_SOCKET_PATH: ""
+      OGMIOS_HOST: "0.0.0.0"
+      OGMIOS_PORT: "1337"
+    ports:
+      - "1337:1337"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:1337/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  kupo:
+    image: cardanosolutions/kupo:latest
+    container_name: basilisk-kupo
+    profiles: ["cardano"]
+    depends_on:
+      ogmios:
+        condition: service_healthy
+    command: >
+      --ogmios-host ogmios
+      --ogmios-port 1337
+      --host 0.0.0.0
+      --port 1442
+      --workdir /db
+      --match "*"
+      --since origin
+      --prune-utxo
+    ports:
+      - "1442:1442"
+    volumes:
+      - kupodata:/db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:1442/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   pgdata:
+  kupodata:
