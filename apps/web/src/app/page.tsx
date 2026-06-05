@@ -9,9 +9,32 @@ interface Stats {
   dexVolumeLovelace24h: string;
 }
 
+interface AdaMarket {
+  price: number;
+  change24h: number;
+  marketCap: number;
+  volume24h: number;
+}
+
+async function fetchAdaMarket(): Promise<AdaMarket> {
+  const res = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true",
+  );
+  if (!res.ok) throw new Error("CoinGecko fetch failed");
+  const data = await res.json();
+  const ada = data.cardano;
+  return {
+    price: ada.usd,
+    change24h: ada.usd_24h_change,
+    marketCap: ada.usd_market_cap,
+    volume24h: ada.usd_24h_vol,
+  };
+}
+
 export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [apiOnline, setApiOnline] = useState(false);
+  const [adaMarket, setAdaMarket] = useState<AdaMarket | null>(null);
 
   useEffect(() => {
     fetchStats()
@@ -20,6 +43,10 @@ export default function Home() {
         setApiOnline(true);
       })
       .catch(() => setApiOnline(false));
+
+    fetchAdaMarket()
+      .then(setAdaMarket)
+      .catch(() => {});
   }, []);
 
   const epoch = stats?.latestBlock?.epoch ?? "—";
@@ -60,8 +87,16 @@ export default function Home() {
         gap: 16,
         marginBottom: 24,
       }}>
-        <StatCard label="ADA Price" value="$0.74" change="+2.3%" positive />
-        <StatCard label="Market Cap" value="$26.1B" change="+1.8%" positive />
+        <StatCard
+          label="ADA Price"
+          value={adaMarket ? `$${adaMarket.price.toFixed(4)}` : "$—"}
+          change={adaMarket ? `${adaMarket.change24h >= 0 ? "+" : ""}${adaMarket.change24h.toFixed(1)}%` : undefined}
+          positive={adaMarket ? adaMarket.change24h >= 0 : undefined}
+        />
+        <StatCard
+          label="Market Cap"
+          value={adaMarket ? `$${formatLargeUsd(adaMarket.marketCap)}` : "$—"}
+        />
         <StatCard label="24h DEX Volume" value={dexVol} />
         <StatCard label="Epoch" value={String(epoch)} sublabel={`${txCount} txs (24h)`} />
       </div>
@@ -111,6 +146,14 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+function formatLargeUsd(value: number): string {
+  if (value >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(2)}T`;
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toFixed(0);
 }
 
 function formatLovelace(lovelace: string): string {
