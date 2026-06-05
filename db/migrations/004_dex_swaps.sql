@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS dex_swaps (
   slot           BIGINT      NOT NULL,
   timestamp      TIMESTAMPTZ NOT NULL,
   ingested_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (tx_hash, dex, pool_id)
+  PRIMARY KEY (tx_hash, dex, pool_id, timestamp)
 );
 
 -- Convert to TimescaleDB hypertable (7-day chunks).

@@ -3,6 +3,12 @@
  * Each service calls `loadConfig()` at startup. Missing required vars throw immediately.
  */
 
+import { config as loadDotenv } from "dotenv";
+
+// Load .env file from the repo root (walks up from cwd).
+loadDotenv();
+loadDotenv({ path: "../../.env" }); // For services/*/  and packages/*/
+
 /** All known config keys and their types. */
 export interface BasiliskConfig {
   // Cardano data layer

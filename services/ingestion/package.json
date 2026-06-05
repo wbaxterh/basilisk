@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Chain follower \u2014 tails Ogmios/Oura, normalizes events, publishes to Redis, persists swaps.",
+  "description": "Chain follower — tails Ogmios/Oura, normalizes events, publishes to Redis, persists swaps.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -11,15 +11,16 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "@types/node": "^20.11.0"
+    "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@basilisk/shared": "*",
     "@basilisk/chain-data": "*",
+    "@basilisk/shared": "*",
     "@cardano-ogmios/client": "*",
     "@cardano-ogmios/schema": "*",
+    "dotenv": "^17.4.2",
     "postgres": "^3.4.0"
   }
 }
