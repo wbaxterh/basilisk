@@ -9,6 +9,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { createLogger, loadConfig } from "@basilisk/shared";
+import { BlockfrostProvider } from "@basilisk/chain-data";
 import { createDb } from "./db.js";
 import { healthRoutes } from "./routes/health.js";
 import { priceRoutes } from "./routes/prices.js";
@@ -17,15 +18,24 @@ import { tokenRoutes } from "./routes/tokens.js";
 import { swapRoutes } from "./routes/swaps.js";
 import { blockRoutes } from "./routes/blocks.js";
 import { walletRoutes } from "./routes/wallets.js";
+import { screenerRoutes } from "./routes/screener.js";
+import { alertRoutes } from "./routes/alerts.js";
+import { profilerRoutes } from "./routes/profiler.js";
 
 const log = createLogger("api-gateway");
 
 async function main(): Promise<void> {
   log.info("initializing api-gateway");
 
-  const config = loadConfig("databaseUrl", "portApiGateway", "logLevel");
+  const config = loadConfig("databaseUrl", "portApiGateway", "logLevel", "blockfrostProjectId", "blockfrostNetwork");
 
   const sql = createDb(config.databaseUrl);
+
+  // Chain data provider for the profiler endpoint.
+  const provider = new BlockfrostProvider({
+    projectId: config.blockfrostProjectId,
+    network: config.blockfrostNetwork,
+  });
 
   const app = Fastify({
     logger: false, // We use our own logger.
@@ -55,6 +65,9 @@ async function main(): Promise<void> {
   await swapRoutes(app, sql);
   await blockRoutes(app, sql);
   await walletRoutes(app, sql);
+  await screenerRoutes(app, sql);
+  await alertRoutes(app, sql);
+  await profilerRoutes(app, sql, provider);
 
   // Start.
   const port = config.portApiGateway;
