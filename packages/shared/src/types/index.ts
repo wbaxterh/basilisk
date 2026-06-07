@@ -6,3 +6,4 @@ export * from "./chain.js";
 export * from "./market.js";
 export * from "./portfolio.js";
 export * from "./api.js";
+export * from "./alerts.js";

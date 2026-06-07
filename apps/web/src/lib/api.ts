@@ -62,6 +62,17 @@ interface TokenData {
   price: PriceData | null;
 }
 
+interface TokenDetailData extends TokenData {
+  logoUrl: string | null;
+  description: string | null;
+  website: string | null;
+  updatedAt: number;
+  changePercent24h: number | null;
+  volume24h: string;
+  holders: number;
+  totalSupply: string | null;
+}
+
 // -- API functions --
 
 export async function fetchPrices(limit = 50): Promise<PriceData[]> {
@@ -99,13 +110,40 @@ export async function fetchTokens(search?: string): Promise<TokenData[]> {
   return res.data;
 }
 
-export async function fetchToken(asset: string): Promise<TokenData | null> {
+export async function fetchToken(asset: string): Promise<TokenDetailData | null> {
   try {
-    const res = await fetchApi<{ data: TokenData }>(`/api/tokens/${encodeURIComponent(asset)}`);
+    const res = await fetchApi<{ data: TokenDetailData }>(`/api/tokens/${encodeURIComponent(asset)}`);
     return res.data;
   } catch {
     return null;
   }
+}
+
+// -- Screener --
+
+export interface ScreenerRow {
+  rank: number;
+  asset: string;
+  ticker: string | null;
+  priceAda: string;
+  priceUsd: string | null;
+  volumeAda: string;
+  change24h: string | null;
+}
+
+export async function fetchScreenerTop(limit = 50): Promise<ScreenerRow[]> {
+  const res = await fetchApi<{ data: ScreenerRow[] }>(`/api/screener/top?limit=${limit}`);
+  return res.data;
+}
+
+export async function fetchScreenerGainers(limit = 50): Promise<ScreenerRow[]> {
+  const res = await fetchApi<{ data: ScreenerRow[] }>(`/api/screener/gainers?limit=${limit}`);
+  return res.data;
+}
+
+export async function fetchScreenerLosers(limit = 50): Promise<ScreenerRow[]> {
+  const res = await fetchApi<{ data: ScreenerRow[] }>(`/api/screener/losers?limit=${limit}`);
+  return res.data;
 }
 
 // -- Portfolio / Wallet --

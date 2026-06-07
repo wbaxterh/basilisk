@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import CandleChart from "../../components/CandleChart";
 import EmptyState from "../../components/EmptyState";
-import { fetchCandles, fetchSwaps } from "../../lib/api";
+import { fetchCandles, fetchSwaps, fetchTokens } from "../../lib/api";
 
 interface CandleData {
   openTime: number;
@@ -24,16 +25,44 @@ interface SwapData {
   timestamp: number;
 }
 
+interface TokenResult {
+  asset: string;
+  ticker: string | null;
+  name: string | null;
+}
+
 const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 export default function TokensPage() {
+  const router = useRouter();
   const [asset, setAsset] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState<TokenResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [interval, setInterval] = useState<string>("1h");
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [swaps, setSwaps] = useState<SwapData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Search tokens as user types
+  useEffect(() => {
+    if (searchInput.trim().length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const tokens = await fetchTokens(searchInput.trim());
+        setSearchResults(tokens.map((t) => ({ asset: t.asset, ticker: t.ticker, name: t.name })));
+        setShowResults(true);
+      } catch {
+        setSearchResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
   const loadData = useCallback(async (tokenAsset: string, candleInterval: string) => {
     setLoading(true);
@@ -62,7 +91,14 @@ export default function TokensPage() {
     const trimmed = searchInput.trim();
     if (trimmed) {
       setAsset(trimmed);
+      setShowResults(false);
     }
+  };
+
+  const handleSelectToken = (tokenAsset: string) => {
+    setShowResults(false);
+    setSearchInput("");
+    router.push(`/tokens/${encodeURIComponent(tokenAsset)}`);
   };
 
   return (
@@ -75,38 +111,89 @@ export default function TokensPage() {
       </p>
 
       {/* Search bar */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        <input
-          type="text"
-          placeholder="Enter token asset ID (e.g. policyId + assetName hex)..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--color-border)",
+      <div style={{ position: "relative", marginBottom: 24 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Search by ticker or name, or enter asset ID..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            onFocus={() => searchResults.length > 0 && setShowResults(true)}
+            onBlur={() => setTimeout(() => setShowResults(false), 200)}
+            style={{
+              flex: 1,
+              padding: "10px 16px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg-elevated)",
+              color: "var(--color-text-primary)",
+              fontSize: 14,
+              fontFamily: "var(--font-mono)",
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            style={{
+              padding: "10px 20px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--color-brand)",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: "pointer",
+              border: "none",
+            }}
+          >
+            Load Chart
+          </button>
+        </div>
+
+        {/* Search results dropdown */}
+        {showResults && searchResults.length > 0 && (
+          <div style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 72,
+            marginTop: 4,
             background: "var(--color-bg-elevated)",
-            color: "var(--color-text-primary)",
-            fontSize: 14,
-            fontFamily: "var(--font-mono)",
-            outline: "none",
-          }}
-        />
-        <button
-          onClick={handleSearch}
-          style={{
-            padding: "10px 20px",
+            border: "1px solid var(--color-border)",
             borderRadius: "var(--radius-md)",
-            background: "var(--color-brand)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: 14,
-          }}
-        >
-          Load Chart
-        </button>
+            maxHeight: 240,
+            overflowY: "auto",
+            zIndex: 50,
+          }}>
+            {searchResults.map((t) => (
+              <button
+                key={t.asset}
+                onMouseDown={() => handleSelectToken(t.asset)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ fontWeight: 600, fontFamily: "var(--font-mono)", minWidth: 60 }}>
+                  {t.ticker || "—"}
+                </span>
+                <span style={{ color: "var(--color-text-secondary)", flex: 1 }}>
+                  {t.name || t.asset.slice(0, 20) + "..."}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {!asset ? (
@@ -117,6 +204,25 @@ export default function TokensPage() {
         />
       ) : (
         <>
+          {/* Link to detail page */}
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={() => router.push(`/tokens/${encodeURIComponent(asset)}`)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--color-bg-elevated)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-brand)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              View full token details →
+            </button>
+          </div>
+
           {/* Interval selector */}
           <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
             {INTERVALS.map((iv) => (
@@ -131,6 +237,7 @@ export default function TokensPage() {
                   background: interval === iv ? "var(--color-brand)" : "var(--color-bg-elevated)",
                   color: interval === iv ? "#fff" : "var(--color-text-secondary)",
                   border: interval === iv ? "none" : "1px solid var(--color-border)",
+                  cursor: "pointer",
                 }}
               >
                 {iv}

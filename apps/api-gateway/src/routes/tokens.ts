@@ -53,11 +53,11 @@ export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void>
     };
   });
 
-  /** GET /api/tokens/:asset — single token metadata + current price. */
+  /** GET /api/tokens/:asset — single token metadata + current price + market stats. */
   app.get("/api/tokens/:asset", async (req) => {
     const { asset } = req.params as { asset: string };
 
-    const [metaRows, priceRows] = await Promise.all([
+    const [metaRows, priceRows, price24hAgoRows, volume24hRows, holdersRows] = await Promise.all([
       sql`
         SELECT asset, policy_id, asset_name, ticker, name, decimals,
                logo_url, description, website,
@@ -74,6 +74,26 @@ export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void>
         ORDER BY timestamp DESC
         LIMIT 1
       `,
+      sql`
+        SELECT price_ada
+        FROM prices
+        WHERE asset = ${asset}
+          AND timestamp <= NOW() - INTERVAL '24 hours'
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `,
+      sql`
+        SELECT COALESCE(SUM(volume_ada), 0) AS total_volume
+        FROM prices
+        WHERE asset = ${asset}
+          AND timestamp >= NOW() - INTERVAL '24 hours'
+      `,
+      sql`
+        SELECT COUNT(DISTINCT sender_address) AS holder_count
+        FROM dex_swaps
+        WHERE (asset_in = ${asset} OR asset_out = ${asset})
+          AND sender_address IS NOT NULL
+      `,
     ]);
 
     if (metaRows.length === 0) {
@@ -82,6 +102,14 @@ export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void>
 
     const meta = metaRows[0]!;
     const price = priceRows[0];
+    const price24hAgo = price24hAgoRows[0];
+
+    let changePercent24h: number | null = null;
+    if (price && price24hAgo && parseFloat(price24hAgo.price_ada) > 0) {
+      const current = parseFloat(price.price_ada);
+      const old = parseFloat(price24hAgo.price_ada);
+      changePercent24h = ((current - old) / old) * 100;
+    }
 
     return {
       data: {
@@ -103,6 +131,10 @@ export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void>
               timestamp: price.timestamp,
             }
           : null,
+        changePercent24h,
+        volume24h: volume24hRows[0]?.total_volume ?? "0",
+        holders: parseInt(holdersRows[0]?.holder_count ?? "0", 10),
+        totalSupply: null,
       },
     };
   });
