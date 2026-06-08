@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchStats } from "../lib/api";
+import { fetchStats, fetchScreenerTop, type ScreenerRow } from "../lib/api";
 
 interface Stats {
   latestBlock: { height: number; epoch: number; timestamp: number } | null;
@@ -35,6 +35,7 @@ export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [apiOnline, setApiOnline] = useState(false);
   const [adaMarket, setAdaMarket] = useState<AdaMarket | null>(null);
+  const [topMovers, setTopMovers] = useState<ScreenerRow[]>([]);
 
   useEffect(() => {
     fetchStats()
@@ -46,6 +47,10 @@ export default function Home() {
 
     fetchAdaMarket()
       .then(setAdaMarket)
+      .catch(() => {});
+
+    fetchScreenerTop(5)
+      .then(setTopMovers)
       .catch(() => {});
   }, []);
 
@@ -118,11 +123,22 @@ export default function Home() {
             Top Movers (24h)
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <TokenRow rank={1} name="MIN" price="0.0412" change="+18.4%" positive />
-            <TokenRow rank={2} name="SUNDAE" price="0.0087" change="+12.1%" positive />
-            <TokenRow rank={3} name="WRT" price="0.0231" change="+9.7%" positive />
-            <TokenRow rank={4} name="LENFI" price="1.24" change="-6.2%" positive={false} />
-            <TokenRow rank={5} name="SNEK" price="0.0034" change="-4.8%" positive={false} />
+            {topMovers.length > 0 ? (
+              topMovers.map((m) => (
+                <TokenRow
+                  key={m.asset}
+                  rank={m.rank}
+                  name={m.ticker || m.asset.slice(0, 8) + "..."}
+                  price={parseFloat(m.priceAda).toFixed(4)}
+                  change={m.change24h ? `${parseFloat(m.change24h) >= 0 ? "+" : ""}${m.change24h}%` : "—"}
+                  positive={m.change24h ? parseFloat(m.change24h) >= 0 : true}
+                />
+              ))
+            ) : (
+              <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 13 }}>
+                Waiting for DEX data...
+              </div>
+            )}
           </div>
         </div>
 

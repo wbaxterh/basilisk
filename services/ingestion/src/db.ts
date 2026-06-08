@@ -51,6 +51,15 @@ export async function insertTransaction(sql: Sql, tx: Transaction): Promise<void
   `;
 }
 
+/** Get the last ingested block height from the blocks table. */
+export async function getLastHeight(sql: Sql): Promise<number> {
+  const rows = await sql`
+    SELECT height FROM blocks ORDER BY height DESC LIMIT 1
+  `;
+  if (rows.length === 0) return 0;
+  return Number(rows[0]!.height);
+}
+
 /** Get the last ingested slot from sync_state. */
 export async function getLastSlot(sql: Sql): Promise<number> {
   const rows = await sql`
