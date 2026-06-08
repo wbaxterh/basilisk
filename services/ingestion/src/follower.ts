@@ -11,6 +11,7 @@ import {
   insertTransaction,
   getLastSlot,
   setLastSlot,
+  getLastHeight,
 } from "./db.js";
 
 export interface FollowerConfig {
@@ -92,18 +93,15 @@ async function ingestNewBlocks(
     tipHeight: tip.height,
   });
 
-  // Walk forward from lastSlot by iterating block heights.
-  // Get the height of our last known block, then process from there.
+  // Walk forward by block height (not slot — Blockfrost API takes height, not slot).
+  const lastHeight = await getLastHeight(sql);
   let currentHeight: number;
-  if (lastSlot === 0) {
-    // Fresh start — begin from tip minus a small window (or from genesis).
-    // For MVP, start from recent blocks rather than syncing all history.
+  if (lastHeight === 0) {
+    // Fresh start — begin from recent blocks.
     currentHeight = Math.max(0, tip.height - 10);
     log.info("fresh start, beginning from recent blocks", { startHeight: currentHeight });
   } else {
-    // Find the block at our last known slot to get its height.
-    const lastBlock = await provider.getBlock(lastSlot);
-    currentHeight = lastBlock.height + 1;
+    currentHeight = lastHeight + 1;
   }
 
   let processed = 0;

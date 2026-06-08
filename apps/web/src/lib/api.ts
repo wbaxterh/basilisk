@@ -173,3 +173,70 @@ export async function trackWallet(stakeAddress: string, label?: string): Promise
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
 }
+
+// -- Profiler --
+
+export interface ProfileData {
+  address: string;
+  stakeAddress: string | null;
+  totalValueAda: string;
+  holdings: Array<{
+    asset: string;
+    quantity: string;
+    valueAda: string;
+    ticker: string | null;
+    name: string | null;
+    decimals: number;
+  }>;
+  activity: Array<{
+    txHash: string;
+    dex: string;
+    assetIn: string;
+    amountIn: string;
+    assetOut: string;
+    amountOut: string;
+    timestamp: number;
+  }>;
+}
+
+export async function fetchProfile(address: string): Promise<ProfileData> {
+  const res = await fetchApi<{ data: ProfileData }>(`/api/profiler/${encodeURIComponent(address)}`);
+  return res.data;
+}
+
+// -- Alerts --
+
+export interface AlertRuleData {
+  id: string;
+  type: string;
+  asset: string | null;
+  condition: Record<string, unknown>;
+  channels: string[];
+  enabled: boolean;
+  createdAt: number;
+}
+
+export async function fetchAlerts(userId?: string): Promise<AlertRuleData[]> {
+  const params = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+  const res = await fetchApi<{ data: AlertRuleData[] }>(`/api/alerts${params}`);
+  return res.data;
+}
+
+export async function createAlert(alert: {
+  userId: string;
+  type: string;
+  asset: string;
+  condition: Record<string, unknown>;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/alerts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(alert),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+}
+
+export async function deleteAlert(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/alerts/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+}
