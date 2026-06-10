@@ -140,6 +140,13 @@ export class KupmiosProvider implements ChainDataProvider {
     };
   }
 
+  async getAssetAddresses(
+    _asset: string,
+    _opts?: QueryOptions,
+  ): Promise<Array<{ address: string; quantity: string }>> {
+    throw new Error("KupmiosProvider.getAssetAddresses is not supported — use BlockfrostProvider");
+  }
+
   async isHealthy(): Promise<boolean> {
     try {
       // Check Ogmios.

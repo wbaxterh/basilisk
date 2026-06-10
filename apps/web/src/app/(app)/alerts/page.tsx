@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import EmptyState from "../../components/EmptyState";
-import { fetchAlerts, createAlert, deleteAlert, type AlertRuleData } from "../../lib/api";
+import EmptyState from "../../../components/EmptyState";
+import { fetchAlerts, createAlert, deleteAlert, type AlertRuleData } from "../../../lib/api";
 
 const RULE_TYPES = [
   { value: "price_above", label: "Price Above" },

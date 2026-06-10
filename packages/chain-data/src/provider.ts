@@ -55,4 +55,10 @@ export interface ChainDataProvider {
 
   /** Health check — is the provider reachable and synced? */
   isHealthy(): Promise<boolean>;
+
+  /** Get addresses holding a specific asset, sorted by quantity descending. */
+  getAssetAddresses(
+    asset: string,
+    opts?: QueryOptions,
+  ): Promise<Array<{ address: string; quantity: string }>>;
 }

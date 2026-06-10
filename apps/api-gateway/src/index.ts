@@ -8,9 +8,11 @@
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import { createLogger, loadConfig } from "@basilisk/shared";
 import { BlockfrostProvider } from "@basilisk/chain-data";
 import { createDb } from "./db.js";
+import { registerApiKeyMiddleware } from "./middleware/apiKey.js";
 import { healthRoutes } from "./routes/health.js";
 import { priceRoutes } from "./routes/prices.js";
 import { candleRoutes } from "./routes/candles.js";
@@ -21,6 +23,8 @@ import { walletRoutes } from "./routes/wallets.js";
 import { screenerRoutes } from "./routes/screener.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { profilerRoutes } from "./routes/profiler.js";
+import { keyRoutes } from "./routes/keys.js";
+import { waitlistRoutes } from "./routes/waitlist.js";
 
 const log = createLogger("api-gateway");
 
@@ -47,6 +51,16 @@ async function main(): Promise<void> {
     methods: ["GET", "POST", "PUT", "DELETE"],
   });
 
+  // API key middleware — resolves X-API-Key header before rate limiting.
+  await registerApiKeyMiddleware(app, sql);
+
+  // Rate limiting — default 100 req/min; per-key limits for authenticated requests.
+  await app.register(rateLimit, {
+    max: (req) => req.apiKey?.rateLimit ?? 100,
+    timeWindow: "1 minute",
+    keyGenerator: (req) => req.apiKey?.id ?? req.ip,
+  });
+
   // Request logging.
   app.addHook("onResponse", (req, reply) => {
     log.info("request", {
@@ -61,12 +75,14 @@ async function main(): Promise<void> {
   await healthRoutes(app, sql);
   await priceRoutes(app, sql);
   await candleRoutes(app, sql);
-  await tokenRoutes(app, sql);
+  await tokenRoutes(app, sql, provider);
   await swapRoutes(app, sql);
   await blockRoutes(app, sql);
   await walletRoutes(app, sql);
   await screenerRoutes(app, sql);
   await alertRoutes(app, sql);
+  await keyRoutes(app, sql);
+  await waitlistRoutes(app, sql);
   await profilerRoutes(app, sql, provider);
 
   // Start.

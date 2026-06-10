@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import EmptyState from "../../components/EmptyState";
-import { fetchProfile, type ProfileData } from "../../lib/api";
+import EmptyState from "../../../components/EmptyState";
+import { fetchProfile, type ProfileData } from "../../../lib/api";
 
 export default function WalletsPage() {
   const [input, setInput] = useState("");

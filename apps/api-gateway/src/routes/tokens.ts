@@ -4,8 +4,9 @@
 
 import type { FastifyInstance } from "fastify";
 import type { Sql } from "../db.js";
+import type { ChainDataProvider } from "@basilisk/chain-data";
 
-export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void> {
+export async function tokenRoutes(app: FastifyInstance, sql: Sql, provider: ChainDataProvider): Promise<void> {
   /** GET /api/tokens — list tokens with metadata. */
   app.get("/api/tokens", async (req) => {
     const query = req.query as { page?: string; perPage?: string; search?: string };
@@ -137,5 +138,67 @@ export async function tokenRoutes(app: FastifyInstance, sql: Sql): Promise<void>
         totalSupply: null,
       },
     };
+  });
+
+  /** GET /api/tokens/:asset/holders — top holders and concentration metrics. */
+  app.get("/api/tokens/:asset/holders", async (req, reply) => {
+    const { asset } = req.params as { asset: string };
+
+    try {
+      // Fetch top holders from Blockfrost (sorted by quantity desc).
+      const holders = await provider.getAssetAddresses(asset, { count: 20, order: "desc" });
+
+      // Calculate total supply from all holder quantities.
+      const totalSupply = holders.reduce(
+        (sum, h) => sum + BigInt(h.quantity),
+        0n,
+      );
+
+      const data = holders.map((h, i) => ({
+        rank: i + 1,
+        address: h.address,
+        quantity: h.quantity,
+        percentage:
+          totalSupply > 0n
+            ? Number((BigInt(h.quantity) * 10000n) / totalSupply) / 100
+            : 0,
+      }));
+
+      // Concentration metrics.
+      const top10Supply = holders
+        .slice(0, 10)
+        .reduce((sum, h) => sum + BigInt(h.quantity), 0n);
+
+      return {
+        data: {
+          holders: data,
+          totalSupply: totalSupply.toString(),
+          concentration: {
+            top10Percentage:
+              totalSupply > 0n
+                ? Number((top10Supply * 10000n) / totalSupply) / 100
+                : 0,
+            top20Percentage:
+              totalSupply > 0n
+                ? Number(
+                    (holders.reduce((s, h) => s + BigInt(h.quantity), 0n) *
+                      10000n) /
+                      totalSupply,
+                  ) / 100
+                : 0,
+            holderCount: holders.length,
+          },
+        },
+      };
+    } catch (err) {
+      reply.status(502);
+      return {
+        error: {
+          code: "PROVIDER_ERROR",
+          message:
+            err instanceof Error ? err.message : "Failed to fetch holder data",
+        },
+      };
+    }
   });
 }

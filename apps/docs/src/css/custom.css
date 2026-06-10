@@ -1,0 +1,230 @@
+/**
+ * Basilisk Docs — dark theme, neon-emerald brand, Nunito Sans.
+ * Mirrors the landing-page design language.
+ * (Font loaded via headTags in docusaurus.config.ts.)
+ */
+
+:root {
+  /* Brand */
+  --ifm-color-primary: #16A35A;
+  --ifm-color-primary-dark: #138C4D;
+  --ifm-color-primary-darker: #11814A;
+  --ifm-color-primary-darkest: #0E6C3D;
+  --ifm-color-primary-light: #1FBA68;
+  --ifm-color-primary-lighter: #20EB7A;
+  --ifm-color-primary-lightest: #44F095;
+
+  --ifm-font-family-base: 'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  --ifm-code-font-size: 90%;
+
+  --ifm-heading-font-weight: 800;
+  --ifm-h1-font-size: 2.4rem;
+  --ifm-h2-font-size: 1.6rem;
+  --ifm-h3-font-size: 1.2rem;
+
+  --ifm-navbar-height: 56px;
+  --ifm-navbar-padding-vertical: 0;
+
+  --docusaurus-highlighted-code-line-bg: rgba(32, 235, 122, 0.1);
+}
+
+/* Dark theme — match landing page exactly */
+[data-theme='dark'] {
+  --ifm-color-primary: #20EB7A;
+  --ifm-color-primary-dark: #16A35A;
+  --ifm-color-primary-darker: #138C4D;
+  --ifm-color-primary-darkest: #0E6C3D;
+  --ifm-color-primary-light: #3FF093;
+  --ifm-color-primary-lighter: #5DF3A6;
+  --ifm-color-primary-lightest: #7AF6B6;
+
+  --ifm-background-color: #000000;
+  --ifm-background-surface-color: #0A0A0B;
+
+  --ifm-navbar-background-color: rgba(0, 0, 0, 0.7);
+  --ifm-footer-background-color: #0A0A0B;
+
+  --ifm-color-content: #FFFFFF;
+  --ifm-color-content-secondary: #9898A1;
+
+  --ifm-toc-border-color: #24242C;
+  --ifm-color-emphasis-200: #1A1A20;
+  --ifm-color-emphasis-300: #24242C;
+  --ifm-color-emphasis-400: #2F2F38;
+  --ifm-color-emphasis-700: #9898A1;
+
+  --ifm-menu-color: #9898A1;
+  --ifm-menu-color-active: #20EB7A;
+  --ifm-link-color: #20EB7A;
+  --ifm-link-hover-color: #5DF3A6;
+
+  --ifm-code-background: #111112;
+  --ifm-code-color: #20EB7A;
+
+  --docusaurus-highlighted-code-line-bg: rgba(32, 235, 122, 0.12);
+}
+
+/* Navbar tweaks */
+[data-theme='dark'] .navbar {
+  border-bottom: 1px solid #24242C;
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+[data-theme='dark'] .navbar__title {
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+[data-theme='dark'] .navbar__link {
+  font-size: 13px;
+  font-weight: 500;
+  color: #9898A1;
+}
+
+[data-theme='dark'] .navbar__link:hover,
+[data-theme='dark'] .navbar__link--active {
+  color: #FFFFFF;
+}
+
+/* Hero CTA buttons */
+.button--primary {
+  background-color: #20EB7A;
+  border-color: #20EB7A;
+  color: #001A0E;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.button--primary:hover {
+  background-color: #3FF093;
+  border-color: #3FF093;
+  color: #001A0E;
+}
+
+.button--secondary,
+[data-theme='dark'] .button--secondary {
+  background-color: transparent;
+  border-color: #2F2F38;
+  color: #FFFFFF !important;
+  font-weight: 600;
+}
+.button--secondary:hover,
+[data-theme='dark'] .button--secondary:hover {
+  background-color: #1A1A1D;
+  color: #FFFFFF !important;
+  border-color: #20EB7A;
+}
+
+/* Sidebar */
+[data-theme='dark'] .menu {
+  background: #000000;
+  padding: 16px 12px;
+}
+
+[data-theme='dark'] .menu__link {
+  font-size: 13.5px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+[data-theme='dark'] .menu__link--active {
+  background: rgba(32, 235, 122, 0.08);
+  color: #20EB7A;
+  font-weight: 600;
+}
+
+/* Headings */
+.markdown > h1,
+.markdown > h2 {
+  letter-spacing: -1px;
+}
+
+.markdown > h2 {
+  border-bottom: 1px solid #24242C;
+  padding-bottom: 8px;
+  margin-top: 48px;
+}
+
+/* Code blocks */
+[data-theme='dark'] .prism-code,
+[data-theme='dark'] pre {
+  background: #111112 !important;
+  border: 1px solid #24242C;
+  border-radius: 8px;
+}
+
+[data-theme='dark'] code {
+  border: 1px solid #24242C;
+  background: #111112;
+}
+
+/* Tables */
+[data-theme='dark'] table {
+  display: table;
+  width: 100%;
+  border: 1px solid #24242C;
+  border-radius: 8px;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+[data-theme='dark'] table thead tr {
+  background: #111112;
+  border-bottom: 1px solid #24242C;
+}
+
+[data-theme='dark'] table th {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 11px;
+  color: #9898A1;
+  font-weight: 700;
+  border: 0;
+  padding: 10px 14px;
+}
+
+[data-theme='dark'] table td {
+  border: 0;
+  border-bottom: 1px solid #1A1A20;
+  padding: 10px 14px;
+  font-size: 13.5px;
+}
+
+[data-theme='dark'] table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Footer */
+[data-theme='dark'] .footer {
+  border-top: 1px solid #24242C;
+}
+[data-theme='dark'] .footer__title {
+  color: #FFFFFF;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+[data-theme='dark'] .footer__link-item {
+  color: #9898A1;
+  font-size: 13px;
+}
+[data-theme='dark'] .footer__copyright {
+  color: #6B6B73;
+  font-size: 12px;
+}
+
+/* Hero (homepage) */
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center top, rgba(32, 235, 122, 0.08) 0%, transparent 60%);
+}
+
+/* Inline code accent */
+[data-theme='dark'] .markdown a code {
+  color: inherit;
+}

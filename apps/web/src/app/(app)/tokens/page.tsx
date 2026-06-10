@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import CandleChart from "../../components/CandleChart";
-import EmptyState from "../../components/EmptyState";
-import { fetchCandles, fetchSwaps, fetchTokens } from "../../lib/api";
+import CandleChart from "../../../components/CandleChart";
+import EmptyState from "../../../components/EmptyState";
+import { fetchCandles, fetchSwaps, fetchTokens } from "../../../lib/api";
 
 interface CandleData {
   openTime: number;

@@ -5,9 +5,9 @@ import {
   fetchScreenerTop,
   fetchScreenerGainers,
   fetchScreenerLosers,
-} from "../../lib/api";
-import type { ScreenerRow } from "../../lib/api";
-import EmptyState from "../../components/EmptyState";
+} from "../../../lib/api";
+import type { ScreenerRow } from "../../../lib/api";
+import EmptyState from "../../../components/EmptyState";
 
 type Tab = "top" | "gainers" | "losers";
 

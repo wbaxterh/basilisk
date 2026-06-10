@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import CandleChart from "../../../components/CandleChart";
-import { fetchToken, fetchCandles, fetchSwaps } from "../../../lib/api";
+import CandleChart from "../../../../components/CandleChart";
+import { fetchToken, fetchCandles, fetchSwaps, fetchTokenHolders } from "../../../../lib/api";
+import type { TokenHoldersData } from "../../../../lib/api";
 
 interface TokenDetail {
   asset: string;
@@ -70,6 +71,8 @@ export default function TokenDetailPage() {
   const [interval, setInterval] = useState<string>("1h");
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [swaps, setSwaps] = useState<SwapData[]>([]);
+  const [holders, setHolders] = useState<TokenHoldersData | null>(null);
+  const [holdersLoading, setHoldersLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,6 +100,11 @@ export default function TokenDetailPage() {
           return;
         }
         setToken(data as TokenDetail);
+        setHoldersLoading(true);
+        fetchTokenHolders(decodeURIComponent(asset))
+          .then(setHolders)
+          .catch(() => setHolders(null))
+          .finally(() => setHoldersLoading(false));
         return loadMarketData(decodeURIComponent(asset), interval);
       })
       .catch(() => setError("Could not load token data. Is the API gateway running?"))
@@ -359,6 +367,82 @@ export default function TokenDetailPage() {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* Top Holders */}
+      <div style={{
+        background: "var(--color-bg-elevated)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--color-border)",
+        padding: 20,
+        marginTop: 16,
+      }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, marginTop: 0 }}>
+          Top Holders
+        </h2>
+        {holdersLoading ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 14 }}>
+            Loading holder data...
+          </div>
+        ) : !holders || holders.holders.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 14 }}>
+            No holder data available.
+          </div>
+        ) : (
+          <>
+            {/* Concentration metrics */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <StatCard label="Top 10 Concentration" value={`${holders.concentration.top10Percentage.toFixed(2)}%`} />
+              <StatCard label="Top 20 Concentration" value={`${holders.concentration.top20Percentage.toFixed(2)}%`} />
+              <StatCard label="Holders (sampled)" value={String(holders.concentration.holderCount)} />
+            </div>
+            {/* Holder table */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "60px 1fr 1fr 100px",
+                gap: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--color-text-muted)",
+                textTransform: "uppercase" as const,
+                letterSpacing: 0.5,
+              }}>
+                <span>Rank</span>
+                <span>Address</span>
+                <span>Quantity</span>
+                <span>% Supply</span>
+              </div>
+              {holders.holders.map((h) => (
+                <div
+                  key={h.address}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "60px 1fr 1fr 100px",
+                    gap: 8,
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--color-bg-hover)",
+                    fontSize: 13,
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  <span style={{ color: "var(--color-text-muted)" }}>#{h.rank}</span>
+                  <span style={{ color: "var(--color-text-secondary)" }} title={h.address}>
+                    {truncateMiddle(h.address, 10, 8)}
+                  </span>
+                  <span style={{ color: "var(--color-text-secondary)" }}>
+                    {formatNumber(h.quantity, 0)}
+                  </span>
+                  <span style={{ color: "var(--color-text-primary)", fontWeight: 600 }}>
+                    {h.percentage.toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

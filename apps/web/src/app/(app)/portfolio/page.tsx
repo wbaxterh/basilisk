@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import EmptyState from "../../components/EmptyState";
-import { fetchWalletHoldings, trackWallet } from "../../lib/api";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { createChart, LineSeries, type IChartApi, type UTCTimestamp } from "lightweight-charts";
+import EmptyState from "../../../components/EmptyState";
+import { fetchWalletHoldings, trackWallet, fetchPortfolioHistory, type PortfolioSnapshot } from "../../../lib/api";
 
 interface Holding {
   asset: string;
@@ -19,6 +20,9 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentAddress, setCurrentAddress] = useState("");
+  const [history, setHistory] = useState<PortfolioSnapshot[]>([]);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
   const handleLookup = useCallback(async () => {
     const addr = stakeInput.trim();
@@ -27,9 +31,13 @@ export default function PortfolioPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWalletHoldings(addr);
+      const [res, historyData] = await Promise.all([
+        fetchWalletHoldings(addr),
+        fetchPortfolioHistory(addr).catch(() => [] as PortfolioSnapshot[]),
+      ]);
       setHoldings(res.data);
       setTracked(res.meta.tracked);
+      setHistory(historyData);
       setCurrentAddress(addr);
     } catch {
       setError("Could not load holdings. Is the API gateway running?");
@@ -47,6 +55,54 @@ export default function PortfolioPage() {
       setError("Failed to track wallet.");
     }
   };
+
+  useEffect(() => {
+    if (!chartContainerRef.current || history.length === 0) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 260,
+      layout: {
+        background: { color: "transparent" },
+        textColor: "#9ca3af",
+        fontFamily: "var(--font-mono)",
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.04)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
+      },
+      timeScale: { timeVisible: true, borderColor: "rgba(255,255,255,0.1)" },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
+    });
+
+    const series = chart.addSeries(LineSeries, {
+      color: "#2db67c",
+      lineWidth: 2,
+    });
+
+    series.setData(
+      history.map((s) => ({
+        time: s.time as UTCTimestamp,
+        value: parseFloat(s.totalValueAda),
+      })),
+    );
+
+    chart.timeScale().fitContent();
+    chartRef.current = chart;
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [history]);
 
   const totalAda = holdings.reduce((sum, h) => sum + parseFloat(h.valueAda || "0"), 0);
 
@@ -174,6 +230,29 @@ export default function PortfolioPage() {
               )}
             </div>
           </div>
+
+          {/* Value-over-time chart */}
+          {history.length > 0 && (
+            <div style={{
+              background: "var(--color-bg-elevated)",
+              borderRadius: "var(--radius-lg)",
+              border: "1px solid var(--color-border)",
+              padding: "16px 20px",
+              marginBottom: 16,
+            }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--color-text-muted)",
+                textTransform: "uppercase" as const,
+                letterSpacing: 0.5,
+                marginBottom: 12,
+              }}>
+                Portfolio Value Over Time
+              </div>
+              <div ref={chartContainerRef} />
+            </div>
+          )}
 
           {/* Holdings table */}
           <div style={{
