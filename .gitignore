@@ -41,5 +41,6 @@ screenshots/
 # Doc render scratch (PDFs ARE committed as deliverables; preview PNGs are not)
 docs/preview/
 
-# Generated content
-apps/web/src/app/whitepaper/content.generated.ts
+# Whitepaper content is generated from docs/ via apps/web's prebuild
+# script. It IS committed so Vercel (which deploys only apps/web) has
+# the inlined markdown. Regenerate locally whenever docs/ changes.

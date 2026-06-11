@@ -13,6 +13,15 @@ const docsRoot = path.join(repoRoot, 'docs');
 const outFile = path.resolve(__dirname, '..', 'src', 'app', 'whitepaper', 'content.generated.ts');
 
 async function main() {
+  // Skip generation when docs/ isn't reachable (e.g., Vercel uploads only
+  // apps/web). The committed content.generated.ts is used as-is in that case.
+  try {
+    await fs.access(docsRoot);
+  } catch {
+    console.log(`[whitepaper] ${path.relative(repoRoot, docsRoot)} not present — using committed content.generated.ts`);
+    return;
+  }
+
   const planBody = await fs.readFile(path.join(docsRoot, 'BASILISK_MVP_PLAN.md'), 'utf8');
 
   const adrDir = path.join(docsRoot, 'adr');
