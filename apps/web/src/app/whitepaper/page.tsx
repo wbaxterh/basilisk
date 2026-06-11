@@ -1,11 +1,10 @@
-import { promises as fs } from "fs";
-import path from "path";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Metadata } from "next";
 import type { ComponentProps } from "react";
 import { GITHUB_URL } from "../../lib/site";
+import { plan, adrs } from "./content.generated";
 import "./whitepaper.css";
 
 export const metadata: Metadata = {
@@ -13,42 +12,8 @@ export const metadata: Metadata = {
   description: "Basilisk MVP implementation plan + architecture decisions. Public engineering whitepaper for the Cardano analytics & agent-native trading layer.",
 };
 
-// Allow Next to regenerate at most once an hour in production
-export const revalidate = 3600;
-
-interface Doc {
-  slug: string;
-  title: string;
-  body: string;
-}
-
-async function loadDocs(): Promise<{ plan: Doc; adrs: Doc[] }> {
-  // /apps/web → ../../docs
-  const docsRoot = path.resolve(process.cwd(), "../../docs");
-
-  const planBody = await fs.readFile(path.join(docsRoot, "BASILISK_MVP_PLAN.md"), "utf8");
-  const plan: Doc = { slug: "mvp-plan", title: "MVP Implementation Plan", body: planBody };
-
-  const adrDir = path.join(docsRoot, "adr");
-  const entries = await fs.readdir(adrDir);
-  const adrFiles = entries
-    .filter((f) => f.endsWith(".md") && f !== "README.md")
-    .sort();
-
-  const adrs: Doc[] = await Promise.all(
-    adrFiles.map(async (f) => {
-      const body = await fs.readFile(path.join(adrDir, f), "utf8");
-      const titleMatch = body.match(/^#\s+(.+)$/m);
-      return {
-        slug: f.replace(/\.md$/, ""),
-        title: titleMatch?.[1] ?? f,
-        body,
-      };
-    })
-  );
-
-  return { plan, adrs };
-}
+// Whitepaper content is generated at build time from docs/ — see
+// scripts/generate-whitepaper-content.mjs, wired as the `prebuild` script.
 
 function MdImg(props: ComponentProps<"img">) {
   // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
@@ -57,9 +22,7 @@ function MdImg(props: ComponentProps<"img">) {
 
 const mdComponents = { img: MdImg };
 
-export default async function WhitepaperPage() {
-  const { plan, adrs } = await loadDocs();
-
+export default function WhitepaperPage() {
   return (
     <div style={{ background: "var(--color-bg-primary)", minHeight: "100vh" }}>
       {/* Mini nav */}

@@ -40,3 +40,6 @@ screenshots/
 
 # Doc render scratch (PDFs ARE committed as deliverables; preview PNGs are not)
 docs/preview/
+
+# Generated content
+apps/web/src/app/whitepaper/content.generated.ts
