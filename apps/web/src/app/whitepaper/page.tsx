@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { Metadata } from "next";
 import type { ComponentProps } from "react";
 import { GITHUB_URL } from "../../lib/site";
-import { plan, adrs } from "./content.generated";
+import { plan } from "./content.generated";
 import "./whitepaper.css";
 
 export const metadata: Metadata = {
@@ -97,59 +97,36 @@ export default function WhitepaperPage() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 32px 96px" }}>
-        {/* Table of contents */}
-        <aside style={{
-          border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)",
-          background: "var(--color-bg-elevated)", padding: 20, marginBottom: 40,
-        }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>
-            Contents
-          </div>
-          <ol style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 18, fontSize: 14 }}>
-            <li><a href={`#${plan.slug}`} style={{ color: "var(--color-text-primary)" }}>{plan.title}</a></li>
-            {adrs.map((adr, i) => (
-              <li key={adr.slug}>
-                <a href={`#${adr.slug}`} style={{ color: "var(--color-text-primary)" }}>
-                  ADR-{String(i + 1).padStart(3, "0")} · {adr.title.replace(/^ADR[-\s]?\d+[:\s]+/i, "")}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </aside>
-
-        {/* Plan */}
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "56px 32px 96px" }}>
         <article id={plan.slug} className="md">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{plan.body}</ReactMarkdown>
         </article>
 
-        {/* ADRs */}
-        {adrs.map((adr) => (
-          <article key={adr.slug} id={adr.slug} className="md" style={{ marginTop: 72, paddingTop: 48, borderTop: "1px solid var(--color-border)" }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{adr.body}</ReactMarkdown>
-          </article>
-        ))}
-
         <div style={{
-          marginTop: 80, padding: 24, borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)", background: "var(--color-bg-elevated)",
+          marginTop: 64, padding: 28, borderRadius: "var(--radius-lg)",
+          border: "1px solid rgba(32,235,122,0.25)", background: "var(--color-brand-soft)",
           textAlign: "center",
         }}>
-          <div style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 14 }}>
-            This whitepaper is generated from the live source files in the public repo.
-            Latest version always at{" "}
-            <a href={`${GITHUB_URL}/tree/main/docs`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
-              {GITHUB_URL.replace(/^https?:\/\//, "")}/docs
-            </a>.
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 6 }}>
+            Convinced? Join the founding cohort.
+          </div>
+          <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 20, lineHeight: 1.55 }}>
+            Wave-1 invites go to founding members. Lifetime free Pro tier. Alpha access to x402 + MCP. Direct line to the founders.
           </div>
           <Link href="/#waitlist" style={{
             display: "inline-block",
-            padding: "10px 20px", borderRadius: "var(--radius-md)",
+            padding: "12px 24px", borderRadius: "var(--radius-md)",
             background: "var(--color-brand)", color: "#001A0E",
             fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
           }}>
-            REQUEST EARLY ACCESS
+            CLAIM YOUR SPOT →
           </Link>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 16 }}>
+            Source on GitHub:{" "}
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
+              {GITHUB_URL.replace(/^https?:\/\//, "")}
+            </a>
+          </div>
         </div>
       </div>
     </div>

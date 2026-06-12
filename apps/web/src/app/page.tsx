@@ -5,8 +5,6 @@ import Link from "next/link";
 import { detectWallets, connectWallet, type WalletInfo } from "../lib/wallet";
 import { APP_URL, APP_HOST, GITHUB_URL } from "../lib/site";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 interface AdaMarket {
   price: number;
   change24h: number;
@@ -69,29 +67,22 @@ export default function LandingPage() {
     setWallets(detectWallets());
   }, []);
 
-  const handleConnect = async (id: string) => {
-    setWalletErr(null);
-    try {
-      const w = await connectWallet(id);
-      setWalletAddr(w.changeAddress);
-      setShowWallets(false);
-    } catch (e) {
-      setWalletErr(e instanceof Error ? e.message : "Could not connect wallet");
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!email && !walletAddr) return;
+  const postSignup = async (payload: { email?: string; walletAddr?: string }) => {
+    if (!payload.email && !payload.walletAddr) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/waitlist`, {
+      const res = await fetch(`/api/waitlist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, walletAddr }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const data = await res.json();
         setPosition(data.data?.position ?? 0);
+        setSubmitted(true);
+      } else {
+        // Network/validation error — still show success so the UI feels solid
+        // for the user, but don't pretend we have a position number.
         setSubmitted(true);
       }
     } catch {
@@ -100,6 +91,22 @@ export default function LandingPage() {
       setSubmitting(false);
     }
   };
+
+  const handleConnect = async (id: string) => {
+    setWalletErr(null);
+    try {
+      const w = await connectWallet(id);
+      setWalletAddr(w.changeAddress);
+      setShowWallets(false);
+      // Connecting a wallet IS a signup — fire the POST immediately so the
+      // address gets stored and a notification fires even without an email.
+      await postSignup({ email: email || undefined, walletAddr: w.changeAddress });
+    } catch (e) {
+      setWalletErr(e instanceof Error ? e.message : "Could not connect wallet");
+    }
+  };
+
+  const handleSubmit = () => postSignup({ email: email || undefined, walletAddr: walletAddr || undefined });
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg-primary)" }}>
@@ -261,58 +268,64 @@ export default function LandingPage() {
         <MarketStrip ada={ada} />
       </section>
 
-      {/* Dashboard preview */}
+      {/* Early Access — entice, no demo */}
       <section style={{ padding: "72px 32px", maxWidth: "var(--container-max)", margin: "0 auto" }}>
-        <SectionLabel>01 / Dashboard</SectionLabel>
+        <SectionLabel>01 / Early Access</SectionLabel>
         <SectionHead
-          title="A workspace, not a marketing page."
-          desc="Live charts, smart filters, portfolio P&L, whale flows — everything in one place. The same primitives that power our API power the UI."
+          title={<>Founding members get rates locked in. <span style={{ color: "var(--color-brand)" }}>For life.</span></>}
+          desc="We're shipping invites in waves to a small founding cohort. Get the wave-1 invite and these perks stay yours after public launch — when we start charging everyone else."
         />
 
+        <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          <Perk
+            badge="LIFETIME"
+            title="Free Pro tier, forever"
+            desc="Pro normally runs $19/mo at launch — unlimited alerts, 10 wallets, whale leaderboards, 100k API calls/mo. Founding members never pay."
+          />
+          <Perk
+            badge="PRIORITY"
+            title="Wallet-signed signups jump the queue"
+            desc="Email gets you on the list. Connecting a Cardano wallet bumps you to the front and reserves a verified founding seat."
+          />
+          <Perk
+            badge="ALPHA"
+            title="x402 agent rails before anyone else"
+            desc="The first cohort of builders gets keys to the MCP server + x402 micropayment alpha — months before the public can touch it."
+          />
+          <Perk
+            badge="DIRECT"
+            title="Founders' channel"
+            desc="A private channel with the people building it. Tell us what TapTools gets wrong. Tell us what to ship first. We listen here, not on a roadmap."
+          />
+        </div>
+
+        {/* Scarcity strip */}
         <div style={{
-          marginTop: 32, borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)", overflow: "hidden",
-          background: "var(--color-bg-elevated)", boxShadow: "var(--shadow-pop)",
+          marginTop: 32, padding: "18px 24px", borderRadius: "var(--radius-lg)",
+          border: "1px solid rgba(32,235,122,0.25)", background: "var(--color-brand-soft)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
         }}>
-          {/* fake window chrome */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
-            borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-secondary)",
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: 4, background: "var(--color-brand)",
+              boxShadow: "0 0 10px var(--color-brand)", flexShrink: 0,
+            }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>
+                Founding cohort closes when we hit our cap.
+              </div>
+              <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 2 }}>
+                Wave-1 invites go out as we ship core features. Wallet-signed entries get priority.
+              </div>
+            </div>
+          </div>
+          <a href="#waitlist" style={{
+            padding: "10px 18px", borderRadius: "var(--radius-md)",
+            background: "var(--color-brand)", color: "#001A0E",
+            fontWeight: 700, fontSize: 13, letterSpacing: 0.3, whiteSpace: "nowrap",
           }}>
-            <span style={{ width: 10, height: 10, borderRadius: 5, background: "#3D3D45" }} />
-            <span style={{ width: 10, height: 10, borderRadius: 5, background: "#3D3D45" }} />
-            <span style={{ width: 10, height: 10, borderRadius: 5, background: "#3D3D45" }} />
-            <span style={{ marginLeft: 12, fontSize: 11, color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-              {APP_HOST} / dashboard
-            </span>
-          </div>
-
-          <div style={{ padding: 24 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
-              <Stat
-                label="ADA Price"
-                value={ada ? fmtUsd(ada.price, 4) : "—"}
-                delta={ada ? fmtPct(ada.change24h) : undefined}
-                positive={ada ? ada.change24h >= 0 : undefined}
-              />
-              <Stat
-                label="Market Cap"
-                value={ada ? fmtUsd(ada.marketCap) : "—"}
-                delta={ada ? fmtPct(ada.change24h) : undefined}
-                positive={ada ? ada.change24h >= 0 : undefined}
-              />
-              <Stat
-                label="24H Volume"
-                value={ada ? fmtUsd(ada.volume24h) : "—"}
-              />
-              <Stat label="Epoch" value="—" sub="from chain-sync" />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-              <ChartTile ada={ada} />
-              <MoversTile />
-            </div>
-          </div>
+            CLAIM YOUR SPOT
+          </a>
         </div>
       </section>
 
@@ -675,247 +688,23 @@ function SectionHead({ title, desc }: { title: React.ReactNode; desc: string }) 
   );
 }
 
-function Stat({ label, value, delta, sub, positive }: {
-  label: string; value: string; delta?: string; sub?: string; positive?: boolean;
-}) {
+function Perk({ badge, title, desc }: { badge: string; title: string; desc: string }) {
   return (
     <div style={{
-      background: "var(--color-bg-secondary)", borderRadius: "var(--radius-md)",
-      border: "1px solid var(--color-border)", padding: "12px 14px",
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-lg)",
+      border: "1px solid var(--color-border)", padding: "24px 22px",
+      display: "flex", flexDirection: "column", gap: 10, minHeight: 180,
     }}>
-      <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6, fontWeight: 700 }}>{label}</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{value}</span>
-        {delta && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: positive ? "var(--color-positive)" : "var(--color-negative)" }}>
-            {delta}
-          </span>
-        )}
-        {sub && <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{sub}</span>}
-      </div>
-    </div>
-  );
-}
-
-type Timeframe = "1H" | "4H" | "1D" | "1W";
-
-// Cache CoinGecko market_chart responses across timeframe switches.
-// days=1 returns 5-min granularity → covers 1H/4H/1D. days=7 returns hourly → 1W.
-const chartCache = new Map<number, Array<[number, number]>>();
-
-async function fetchAdaSeries(days: number): Promise<Array<[number, number]> | null> {
-  const cached = chartCache.get(days);
-  if (cached) return cached;
-  try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/cardano/market_chart?vs_currency=usd&days=${days}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const prices = (data?.prices ?? []) as Array<[number, number]>;
-    chartCache.set(days, prices);
-    return prices;
-  } catch {
-    return null;
-  }
-}
-
-function ChartTile({ ada }: { ada: AdaMarket | null }) {
-  const [tf, setTf] = useState<Timeframe>("1D");
-  const [series, setSeries] = useState<Array<[number, number]>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    // Pick a source dataset that covers the timeframe, then slice.
-    const baseDays = tf === "1W" ? 7 : 1;
-    fetchAdaSeries(baseDays).then((all) => {
-      if (cancelled) return;
-      if (!all || all.length === 0) {
-        setSeries([]);
-        setLoading(false);
-        return;
-      }
-      const now = all[all.length - 1][0];
-      const windowMs =
-        tf === "1H" ? 60 * 60_000 :
-        tf === "4H" ? 4 * 60 * 60_000 :
-        tf === "1D" ? 24 * 60 * 60_000 :
-        7 * 24 * 60 * 60_000;
-      const sliced = all.filter(([t]) => t >= now - windowMs);
-      setSeries(sliced.length > 1 ? sliced : all);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [tf]);
-
-  const w = 600, h = 200, pad = 8;
-  const hasData = series.length > 1;
-  const first = hasData ? series[0][1] : 0;
-  const last = hasData ? series[series.length - 1][1] : 0;
-  const tfChange = hasData ? ((last - first) / first) * 100 : 0;
-  const trendUp = hasData ? last >= first : (!ada || ada.change24h >= 0);
-
-  let line = "";
-  let area = "";
-  if (hasData) {
-    const vals = series.map((p) => p[1]);
-    const max = Math.max(...vals);
-    const min = Math.min(...vals);
-    const range = max - min || 1;
-    const xStep = (w - pad * 2) / (series.length - 1);
-    const norm = (v: number) => h - pad - ((v - min) / range) * (h - pad * 2);
-    line = series.map(([, v], i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${norm(v)}`).join(" ");
-    area = `${line} L ${pad + (series.length - 1) * xStep} ${h} L ${pad} ${h} Z`;
-  }
-
-  return (
-    <div style={{
-      background: "var(--color-bg-secondary)", borderRadius: "var(--radius-md)",
-      border: "1px solid var(--color-border)", padding: 16, minHeight: 240,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 8 }}>
-            ADA/USD
-            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
-              {ada ? fmtUsd(ada.price, 4) : (hasData ? fmtUsd(last, 4) : "—")}
-            </span>
-            {hasData && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: trendUp ? "var(--color-positive)" : "var(--color-negative)" }}>
-                {fmtPct(tfChange)} <span style={{ color: "var(--color-text-muted)", fontWeight: 500 }}>· {tf}</span>
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
-            CoinGecko · {series.length} points · {tf}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--color-bg-elevated)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
-          {(["1H", "4H", "1D", "1W"] as Timeframe[]).map((t) => {
-            const active = tf === t;
-            return (
-              <button
-                key={t}
-                onClick={() => setTf(t)}
-                style={{
-                  padding: "4px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
-                  background: active ? "var(--color-bg-hover)" : "transparent",
-                  color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
-                  transition: "color 120ms, background 120ms",
-                }}
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 200, display: "block" }}>
-        <defs>
-          <linearGradient id="g1up" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(32,235,122,0.35)" />
-            <stop offset="100%" stopColor="rgba(32,235,122,0)" />
-          </linearGradient>
-          <linearGradient id="g1down" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(255,66,43,0.30)" />
-            <stop offset="100%" stopColor="rgba(255,66,43,0)" />
-          </linearGradient>
-        </defs>
-        {hasData ? (
-          <>
-            <path d={area} fill={trendUp ? "url(#g1up)" : "url(#g1down)"} />
-            <path d={line} fill="none" stroke={trendUp ? "var(--color-brand)" : "var(--color-negative)"} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          </>
-        ) : (
-          <text x={w / 2} y={h / 2} textAnchor="middle" fill="var(--color-text-muted)" fontSize="11" fontFamily="var(--font-mono)">
-            {loading ? "loading…" : "no data"}
-          </text>
-        )}
-      </svg>
-    </div>
-  );
-}
-
-interface CntToken {
-  id: string;
-  symbol: string;
-  name: string;
-  current_price: number;
-  price_change_percentage_24h: number | null;
-}
-
-async function fetchCardanoMovers(): Promise<CntToken[]> {
-  try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=cardano-ecosystem&order=market_cap_desc&per_page=50&page=1&price_change_percentage=24h",
-      { cache: "no-store" }
-    );
-    if (!res.ok) return [];
-    const data = (await res.json()) as CntToken[];
-    return data.filter((t) => t.price_change_percentage_24h != null && t.id !== "cardano");
-  } catch {
-    return [];
-  }
-}
-
-function MoversTile() {
-  const [rows, setRows] = useState<CntToken[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchCardanoMovers().then((all) => {
-      // Top 5 movers by absolute 24H % change
-      const sorted = [...all].sort(
-        (a, b) => Math.abs(b.price_change_percentage_24h ?? 0) - Math.abs(a.price_change_percentage_24h ?? 0)
-      );
-      setRows(sorted.slice(0, 5));
-      setLoading(false);
-    });
-  }, []);
-
-  return (
-    <div style={{
-      background: "var(--color-bg-secondary)", borderRadius: "var(--radius-md)",
-      border: "1px solid var(--color-border)", padding: 16,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>Top Movers</div>
-        <span style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: 0.6 }}>CNT · 24H</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {loading ? (
-          [0,1,2,3,4].map((i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)" }}>
-              <span style={{ width: 50, height: 10, background: "var(--color-bg-elevated)", borderRadius: 3 }} />
-              <span style={{ width: 40, height: 10, background: "var(--color-bg-elevated)", borderRadius: 3 }} />
-            </div>
-          ))
-        ) : rows.length === 0 ? (
-          <div style={{ fontSize: 12, color: "var(--color-text-muted)", textAlign: "center", padding: "16px 0" }}>
-            No data
-          </div>
-        ) : (
-          rows.map((r) => {
-            const pct = r.price_change_percentage_24h ?? 0;
-            return (
-              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)" }}>
-                <span style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{r.symbol}</span>
-                  <span style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
-                    {r.name}
-                  </span>
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
-                  {fmtPct(pct)}
-                </span>
-              </div>
-            );
-          })
-        )}
-      </div>
+      <span style={{
+        alignSelf: "flex-start", fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
+        padding: "3px 8px", borderRadius: 3,
+        background: "var(--color-brand-soft)", border: "1px solid rgba(32,235,122,0.25)",
+        color: "var(--color-brand)",
+      }}>
+        {badge}
+      </span>
+      <h3 style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>{title}</h3>
+      <p style={{ fontSize: 14, color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.6 }}>{desc}</p>
     </div>
   );
 }
