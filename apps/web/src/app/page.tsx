@@ -272,15 +272,15 @@ export default function LandingPage() {
       <section style={{ padding: "72px 32px", maxWidth: "var(--container-max)", margin: "0 auto" }}>
         <SectionLabel>01 / Early Access</SectionLabel>
         <SectionHead
-          title={<>Founding members get rates locked in. <span style={{ color: "var(--color-brand)" }}>For life.</span></>}
-          desc="We're shipping invites in waves to a small founding cohort. Get the wave-1 invite and these perks stay yours after public launch — when we start charging everyone else."
+          title={<>Founding members get Pro <span style={{ color: "var(--color-brand)" }}>free for 6 months.</span></>}
+          desc="We're shipping invites in waves to a small founding cohort. Wave-1 gets six months of Pro on the house, plus perks that survive public launch."
         />
 
         <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
           <Perk
-            badge="LIFETIME"
-            title="Free Pro tier, forever"
-            desc="Pro normally runs $19/mo at launch — unlimited alerts, 10 wallets, whale leaderboards, 100k API calls/mo. Founding members never pay."
+            badge="6 MONTHS"
+            title="Pro free for six months"
+            desc="Pro normally runs $19/mo at launch — unlimited alerts, 10 wallets, whale leaderboards, 100k API calls/mo. Founding members get all of it free for the first six months."
           />
           <Perk
             badge="PRIORITY"

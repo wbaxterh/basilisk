@@ -132,7 +132,7 @@ The waitlist is open. Two signals get you priority:
 - **Email** — gets you in the queue.
 - **CIP-30 wallet** — connects your Cardano wallet and bumps you to the front. Verified founding members.
 
-Founding members get **lifetime free Pro tier**, **alpha access to x402 + MCP**, and a **direct channel to the founders**. These perks survive public launch.
+Founding members get **Pro free for six months**, **alpha access to x402 + MCP**, and a **direct channel to the founders**. These perks survive public launch.
 
 [**Claim a spot →**](https://basilisk-seven.vercel.app/#waitlist)
 

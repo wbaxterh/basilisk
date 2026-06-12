@@ -111,7 +111,7 @@ export default function WhitepaperPage() {
             Convinced? Join the founding cohort.
           </div>
           <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 20, lineHeight: 1.55 }}>
-            Wave-1 invites go to founding members. Lifetime free Pro tier. Alpha access to x402 + MCP. Direct line to the founders.
+            Wave-1 invites go to founding members. Pro free for six months. Alpha access to x402 + MCP. Direct line to the founders.
           </div>
           <Link href="/#top" style={{
             display: "inline-block",
