@@ -109,7 +109,7 @@ export default function LandingPage() {
   const handleSubmit = () => postSignup({ email: email || undefined, walletAddr: walletAddr || undefined });
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg-primary)" }}>
+    <div id="top" style={{ minHeight: "100vh", background: "var(--color-bg-primary)" }}>
       <TopBar />
 
       {/* Hero */}
@@ -319,7 +319,7 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          <a href="#waitlist" style={{
+          <a href="#top" style={{
             padding: "10px 18px", borderRadius: "var(--radius-md)",
             background: "var(--color-brand)", color: "#001A0E",
             fontWeight: 700, fontSize: 13, letterSpacing: 0.3, whiteSpace: "nowrap",
@@ -472,7 +472,7 @@ export default function LandingPage() {
             Join the waitlist. Be first on day one. We&apos;re shipping invites in waves.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            <a href="#waitlist" style={{
+            <a href="#top" style={{
               padding: "12px 22px", borderRadius: "var(--radius-md)",
               background: "var(--color-brand)", color: "#001A0E",
               fontWeight: 700, fontSize: 13, letterSpacing: 0.3,
@@ -519,7 +519,7 @@ function TopBar() {
             <NavLink href="#features">Platform</NavLink>
             <NavLink href="#agents">For Agents</NavLink>
             <NavLink href="/whitepaper">Whitepaper</NavLink>
-            <NavLink href="#waitlist">Pricing</NavLink>
+            <NavLink href="#top">Pricing</NavLink>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -542,7 +542,7 @@ function TopBar() {
           <Link href="/dashboard" style={{ fontSize: 13, color: "var(--color-text-secondary)", padding: "8px 12px" }}>
             Sign in
           </Link>
-          <Link href="#waitlist" style={{
+          <Link href="#top" style={{
             fontSize: 12, fontWeight: 700, letterSpacing: 0.3, padding: "8px 14px",
             borderRadius: "var(--radius-md)", background: "var(--color-brand)", color: "#001A0E",
           }}>

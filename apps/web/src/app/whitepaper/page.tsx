@@ -113,7 +113,7 @@ export default function WhitepaperPage() {
           <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 20, lineHeight: 1.55 }}>
             Wave-1 invites go to founding members. Lifetime free Pro tier. Alpha access to x402 + MCP. Direct line to the founders.
           </div>
-          <Link href="/#waitlist" style={{
+          <Link href="/#top" style={{
             display: "inline-block",
             padding: "12px 24px", borderRadius: "var(--radius-md)",
             background: "var(--color-brand)", color: "#001A0E",
