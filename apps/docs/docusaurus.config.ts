@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
  * Override at deploy time with BASILISK_APP_URL / BASILISK_DOCS_URL / BASILISK_GITHUB_URL.
  * When the production domain is purchased, change a default here or set the env var.
  */
-const APP_URL = process.env.BASILISK_APP_URL || 'https://basilisk.vercel.app';
+const APP_URL = process.env.BASILISK_APP_URL || 'https://basilisk-seven.vercel.app';
 const DOCS_URL = process.env.BASILISK_DOCS_URL || 'https://basilisk-docs.vercel.app';
 const GITHUB_URL = process.env.BASILISK_GITHUB_URL || 'https://github.com/wbaxterh/basilisk';
 

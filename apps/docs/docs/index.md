@@ -19,10 +19,10 @@ slug: /
 
 ## Quick links
 
-- [App](https://basilisk.vercel.app) — the live product
-- [Whitepaper](https://basilisk.vercel.app/whitepaper) — architecture, scope, and roadmap
+- [App](https://basilisk-seven.vercel.app) — the live product
+- [Whitepaper](https://basilisk-seven.vercel.app/whitepaper) — architecture, scope, and roadmap
 - [GitHub](https://github.com/wbaxterh/basilisk) — open-source monorepo
 
 ## Status
 
-Basilisk is in **early access** (Q3 2026). The REST API is in **beta**. The x402 agent rails are **in development** with an alpha for design partners. Join the waitlist on [basilisk.vercel.app](https://basilisk.vercel.app) for an invite.
+Basilisk is in **early access** (Q3 2026). The REST API is in **beta**. The x402 agent rails are **in development** with an alpha for design partners. Join the waitlist on [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) for an invite.

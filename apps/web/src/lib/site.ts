@@ -13,11 +13,12 @@
  *   Dashboard:  `${APP_URL}/dashboard`
  */
 export const APP_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://basilisk.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://basilisk-seven.vercel.app";
 
 /** Hostname without scheme, e.g. for breadcrumb-style display. */
 export const APP_HOST = APP_URL.replace(/^https?:\/\//, "");
 
+// Docs URL filled in after the apps/docs Vercel deploy assigns an alias.
 export const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL || "https://basilisk-docs.vercel.app";
 

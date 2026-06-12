@@ -44,4 +44,4 @@ const price = await agent.x402.get('/v1/prices/MIN');
 
 ## Alpha status
 
-Agent rails are in **closed alpha** with design partners through Q4 2026. To get an invite, join the waitlist on [basilisk.vercel.app](https://basilisk.vercel.app) and mention "agents" in the optional notes field.
+Agent rails are in **closed alpha** with design partners through Q4 2026. To get an invite, join the waitlist on [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) and mention "agents" in the optional notes field.

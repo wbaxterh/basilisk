@@ -5,14 +5,14 @@ sidebar_position: 1
 
 # REST API
 
-The Basilisk REST API exposes the same data that powers basilisk.vercel.app: prices, candles, tokens, wallets, portfolios, and screeners across every major Cardano DEX.
+The Basilisk REST API exposes the same data that powers basilisk-seven.vercel.app: prices, candles, tokens, wallets, portfolios, and screeners across every major Cardano DEX.
 
 > **Status:** Beta. Endpoints and response shapes may still change before v1. Pinning a version (`/v1/…`) gives you breaking-change protection.
 
 ## Base URL
 
 ```
-https://basilisk.vercel.app/api
+https://basilisk-seven.vercel.app/api
 ```
 
 ## Authentication
@@ -23,7 +23,7 @@ Pass your API key as a header:
 X-API-Key: bsk_live_xxx
 ```
 
-Get a key from your dashboard at [basilisk.vercel.app](https://basilisk.vercel.app) → Settings → API Keys. The free tier is generous; usage above the free quota requires a paid plan or x402 micropayments (see [For Agents](../agents/overview)).
+Get a key from your dashboard at [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) → Settings → API Keys. The free tier is generous; usage above the free quota requires a paid plan or x402 micropayments (see [For Agents](../agents/overview)).
 
 ## Rate limits
 

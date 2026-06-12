@@ -9,7 +9,7 @@ Basilisk has three surfaces, depending on who you are:
 
 ## 1. Trader — use the app
 
-Head to **[basilisk.vercel.app](https://basilisk.vercel.app)** and request early access. Once you're in, you can:
+Head to **[basilisk-seven.vercel.app](https://basilisk-seven.vercel.app)** and request early access. Once you're in, you can:
 
 - Connect a Cardano wallet (CIP-30: Lace, Eternl, Nami, Typhon, Flint) or watch any address
 - See live charts and OHLCV candles for every major DEX
@@ -24,7 +24,7 @@ No setup beyond a wallet (or just an email). The free tier covers everything mos
 The REST API gives you the same data that powers the UI. Free tier with generous limits.
 
 ```bash
-curl https://basilisk.vercel.app/api/v1/prices/cardano \
+curl https://basilisk-seven.vercel.app/api/v1/prices/cardano \
   -H "X-API-Key: $BASILISK_KEY"
 ```
 
@@ -38,4 +38,4 @@ Basilisk is the first Cardano analytics platform built for autonomous agents. No
 
 ## What's not in scope (yet)
 
-The MVP focuses on analytics + portfolio + alerts + API. **Not in MVP**: in-app swaps, NFT analytics suite, mobile apps, embeddable widgets. See the [whitepaper](https://basilisk.vercel.app/whitepaper) for the full roadmap.
+The MVP focuses on analytics + portfolio + alerts + API. **Not in MVP**: in-app swaps, NFT analytics suite, mobile apps, embeddable widgets. See the [whitepaper](https://basilisk-seven.vercel.app/whitepaper) for the full roadmap.
