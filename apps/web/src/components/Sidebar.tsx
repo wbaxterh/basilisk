@@ -65,7 +65,16 @@ export default function Sidebar() {
         padding: "16px 20px",
         borderBottom: "1px solid var(--color-border)",
       }}>
-        <span style={{ fontSize: 24 }}>🐍</span>
+        <svg width="24" height="24" viewBox="0 0 32 32" style={{ display: "inline-block", filter: "drop-shadow(0 0 8px rgba(32,235,122,0.35))" }} aria-label="Basilisk">
+          <defs>
+            <linearGradient id="basiliskGradSidebar" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#20EB7A" />
+              <stop offset="100%" stopColor="#16A35A" />
+            </linearGradient>
+          </defs>
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#basiliskGradSidebar)" />
+          <path d="M16 7 L25 16 L16 25 L7 16 Z" fill="#001A0E" />
+        </svg>
         <span style={{
           fontSize: 22,
           fontWeight: 800,

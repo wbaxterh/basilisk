@@ -268,6 +268,25 @@ export default function LandingPage() {
         <MarketStrip ada={ada} />
       </section>
 
+      {/* Live Cardano market — real data, no fake-dashboard chrome */}
+      <section style={{ padding: "56px 32px", maxWidth: "var(--container-max)", margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <SectionLabel>Live · Cardano market</SectionLabel>
+            <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, marginTop: 4 }}>
+              Real data, refreshed every page load
+            </h2>
+          </div>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)", letterSpacing: 0.6, textTransform: "uppercase" }}>
+            CoinGecko · public sources
+          </span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+          <ChartTile ada={ada} />
+          <MoversTile />
+        </div>
+      </section>
+
       {/* Early Access — entice, no demo */}
       <section style={{ padding: "72px 32px", maxWidth: "var(--container-max)", margin: "0 auto" }}>
         <SectionLabel>01 / Early Access</SectionLabel>
@@ -479,13 +498,6 @@ export default function LandingPage() {
             }}>
               REQUEST ACCESS
             </a>
-            <Link href="/dashboard" style={{
-              padding: "12px 22px", borderRadius: "var(--radius-md)",
-              border: "1px solid var(--color-border-strong)", color: "var(--color-text-primary)",
-              fontWeight: 600, fontSize: 13, letterSpacing: 0.3, background: "var(--color-bg-elevated)",
-            }}>
-              PREVIEW THE APP →
-            </Link>
           </div>
         </div>
       </section>
@@ -891,5 +903,227 @@ function Code() {
       {com("// Agent decides: price dropped 15% with 3x avg volume → accumulate")}{"\n"}
       {kw("await")} {v("agent")}{punct(".")}{fn("execute")}{punct("(")}{str("\"swap\"")}{punct(",")} {punct("{")} from{punct(":")} {str("\"ADA\"")}{punct(",")} to{punct(":")} {str("\"MIN\"")}{punct(",")} amount{punct(":")} {str("\"500 ADA\"")} {punct("}")}{punct(");")}
     </>
+  );
+}
+type Timeframe = "1H" | "4H" | "1D" | "1W";
+
+// Cache CoinGecko market_chart responses across timeframe switches.
+// days=1 returns 5-min granularity → covers 1H/4H/1D. days=7 returns hourly → 1W.
+const chartCache = new Map<number, Array<[number, number]>>();
+
+async function fetchAdaSeries(days: number): Promise<Array<[number, number]> | null> {
+  const cached = chartCache.get(days);
+  if (cached) return cached;
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/coins/cardano/market_chart?vs_currency=usd&days=${days}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const prices = (data?.prices ?? []) as Array<[number, number]>;
+    chartCache.set(days, prices);
+    return prices;
+  } catch {
+    return null;
+  }
+}
+
+function ChartTile({ ada }: { ada: AdaMarket | null }) {
+  const [tf, setTf] = useState<Timeframe>("1D");
+  const [series, setSeries] = useState<Array<[number, number]>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    // Pick a source dataset that covers the timeframe, then slice.
+    const baseDays = tf === "1W" ? 7 : 1;
+    fetchAdaSeries(baseDays).then((all) => {
+      if (cancelled) return;
+      if (!all || all.length === 0) {
+        setSeries([]);
+        setLoading(false);
+        return;
+      }
+      const now = all[all.length - 1][0];
+      const windowMs =
+        tf === "1H" ? 60 * 60_000 :
+        tf === "4H" ? 4 * 60 * 60_000 :
+        tf === "1D" ? 24 * 60 * 60_000 :
+        7 * 24 * 60 * 60_000;
+      const sliced = all.filter(([t]) => t >= now - windowMs);
+      setSeries(sliced.length > 1 ? sliced : all);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [tf]);
+
+  const w = 600, h = 200, pad = 8;
+  const hasData = series.length > 1;
+  const first = hasData ? series[0][1] : 0;
+  const last = hasData ? series[series.length - 1][1] : 0;
+  const tfChange = hasData ? ((last - first) / first) * 100 : 0;
+  const trendUp = hasData ? last >= first : (!ada || ada.change24h >= 0);
+
+  let line = "";
+  let area = "";
+  if (hasData) {
+    const vals = series.map((p) => p[1]);
+    const max = Math.max(...vals);
+    const min = Math.min(...vals);
+    const range = max - min || 1;
+    const xStep = (w - pad * 2) / (series.length - 1);
+    const norm = (v: number) => h - pad - ((v - min) / range) * (h - pad * 2);
+    line = series.map(([, v], i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${norm(v)}`).join(" ");
+    area = `${line} L ${pad + (series.length - 1) * xStep} ${h} L ${pad} ${h} Z`;
+  }
+
+  return (
+    <div style={{
+      background: "var(--color-bg-secondary)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 16, minHeight: 240,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 8 }}>
+            ADA/USD
+            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+              {ada ? fmtUsd(ada.price, 4) : (hasData ? fmtUsd(last, 4) : "—")}
+            </span>
+            {hasData && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: trendUp ? "var(--color-positive)" : "var(--color-negative)" }}>
+                {fmtPct(tfChange)} <span style={{ color: "var(--color-text-muted)", fontWeight: 500 }}>· {tf}</span>
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
+            CoinGecko · {series.length} points · {tf}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--color-bg-elevated)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
+          {(["1H", "4H", "1D", "1W"] as Timeframe[]).map((t) => {
+            const active = tf === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTf(t)}
+                style={{
+                  padding: "4px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                  background: active ? "var(--color-bg-hover)" : "transparent",
+                  color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                  transition: "color 120ms, background 120ms",
+                }}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 200, display: "block" }}>
+        <defs>
+          <linearGradient id="g1up" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(32,235,122,0.35)" />
+            <stop offset="100%" stopColor="rgba(32,235,122,0)" />
+          </linearGradient>
+          <linearGradient id="g1down" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,66,43,0.30)" />
+            <stop offset="100%" stopColor="rgba(255,66,43,0)" />
+          </linearGradient>
+        </defs>
+        {hasData ? (
+          <>
+            <path d={area} fill={trendUp ? "url(#g1up)" : "url(#g1down)"} />
+            <path d={line} fill="none" stroke={trendUp ? "var(--color-brand)" : "var(--color-negative)"} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          </>
+        ) : (
+          <text x={w / 2} y={h / 2} textAnchor="middle" fill="var(--color-text-muted)" fontSize="11" fontFamily="var(--font-mono)">
+            {loading ? "loading…" : "no data"}
+          </text>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+interface CntToken {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  price_change_percentage_24h: number | null;
+}
+
+async function fetchCardanoMovers(): Promise<CntToken[]> {
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=cardano-ecosystem&order=market_cap_desc&per_page=50&page=1&price_change_percentage=24h",
+      { cache: "no-store" }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as CntToken[];
+    return data.filter((t) => t.price_change_percentage_24h != null && t.id !== "cardano");
+  } catch {
+    return [];
+  }
+}
+
+function MoversTile() {
+  const [rows, setRows] = useState<CntToken[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCardanoMovers().then((all) => {
+      // Top 5 movers by absolute 24H % change
+      const sorted = [...all].sort(
+        (a, b) => Math.abs(b.price_change_percentage_24h ?? 0) - Math.abs(a.price_change_percentage_24h ?? 0)
+      );
+      setRows(sorted.slice(0, 5));
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <div style={{
+      background: "var(--color-bg-secondary)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 16,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Top Movers</div>
+        <span style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: 0.6 }}>CNT · 24H</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {loading ? (
+          [0,1,2,3,4].map((i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)" }}>
+              <span style={{ width: 50, height: 10, background: "var(--color-bg-elevated)", borderRadius: 3 }} />
+              <span style={{ width: 40, height: 10, background: "var(--color-bg-elevated)", borderRadius: 3 }} />
+            </div>
+          ))
+        ) : rows.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--color-text-muted)", textAlign: "center", padding: "16px 0" }}>
+            No data
+          </div>
+        ) : (
+          rows.map((r) => {
+            const pct = r.price_change_percentage_24h ?? 0;
+            return (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)" }}>
+                <span style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>{r.symbol}</span>
+                  <span style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
+                    {r.name}
+                  </span>
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
+                  {fmtPct(pct)}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
