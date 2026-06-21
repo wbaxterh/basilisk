@@ -1,259 +1,338 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchStats, fetchScreenerTop, type ScreenerRow } from "../../../lib/api";
+import Link from "next/link";
+import {
+  fetchChainTip,
+  fetchAdaMarket,
+  fetchAdaSeries,
+  fetchTopGainers,
+  fetchTopLosers,
+  fmtUsd,
+  fmtPct,
+  fmtCount,
+  type ChainTip,
+  type AdaMarket,
+  type CntToken,
+} from "../../../lib/public-data";
 
-interface Stats {
-  latestBlock: { height: number; epoch: number; timestamp: number } | null;
-  transactions24h: number;
-  dexVolumeLovelace24h: string;
-}
+type Timeframe = "1H" | "4H" | "1D" | "1W";
 
-interface AdaMarket {
-  price: number;
-  change24h: number;
-  marketCap: number;
-  volume24h: number;
-}
-
-async function fetchAdaMarket(): Promise<AdaMarket> {
-  const res = await fetch(
-    "https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true",
-  );
-  if (!res.ok) throw new Error("CoinGecko fetch failed");
-  const data = await res.json();
-  const ada = data.cardano;
-  return {
-    price: ada.usd,
-    change24h: ada.usd_24h_change,
-    marketCap: ada.usd_market_cap,
-    volume24h: ada.usd_24h_vol,
-  };
-}
-
-export default function Home() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [apiOnline, setApiOnline] = useState(false);
-  const [adaMarket, setAdaMarket] = useState<AdaMarket | null>(null);
-  const [topMovers, setTopMovers] = useState<ScreenerRow[]>([]);
+export default function DashboardPage() {
+  const [tip, setTip] = useState<ChainTip | null>(null);
+  const [ada, setAda] = useState<AdaMarket | null>(null);
+  const [gainers, setGainers] = useState<CntToken[]>([]);
+  const [losers, setLosers] = useState<CntToken[]>([]);
 
   useEffect(() => {
-    fetchStats()
-      .then((data) => {
-        setStats(data);
-        setApiOnline(true);
-      })
-      .catch(() => setApiOnline(false));
-
-    fetchAdaMarket()
-      .then(setAdaMarket)
-      .catch(() => {});
-
-    fetchScreenerTop(5)
-      .then(setTopMovers)
-      .catch(() => {});
+    fetchChainTip().then(setTip).catch(() => {});
+    fetchAdaMarket().then(setAda).catch(() => {});
+    fetchTopGainers(5).then(setGainers).catch(() => {});
+    fetchTopLosers(5).then(setLosers).catch(() => {});
   }, []);
 
-  const epoch = stats?.latestBlock?.epoch ?? "—";
-  const txCount = apiOnline ? stats?.transactions24h?.toLocaleString() ?? "—" : "—";
-  const dexVol = apiOnline
-    ? formatLovelace(stats?.dexVolumeLovelace24h ?? "0")
-    : "—";
+  const epochProgress = tip ? Math.round((tip.epochSlot / 432000) * 100) : null;
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
-        Dashboard
-      </h1>
-      <p style={{
-        color: "var(--color-text-secondary)",
-        fontSize: 14,
-        marginBottom: 24,
-      }}>
-        Cardano market overview and portfolio summary.
-        {!apiOnline && (
-          <span style={{
-            marginLeft: 12,
-            fontSize: 12,
-            padding: "2px 8px",
-            borderRadius: "var(--radius-sm)",
-            background: "rgba(245, 158, 11, 0.1)",
-            color: "var(--color-warning)",
-          }}>
-            API offline — showing placeholder data
-          </span>
-        )}
-      </p>
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6, marginBottom: 4 }}>
+          Dashboard
+        </h1>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+          Cardano market overview · powered by{" "}
+          <a href="https://www.koios.rest" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
+            Koios
+          </a>{" "}
+          +{" "}
+          <a href="https://www.coingecko.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
+            CoinGecko
+          </a>
+        </p>
+      </header>
 
-      {/* Stat cards */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 16,
-        marginBottom: 24,
-      }}>
-        <StatCard
+      {/* Stat strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <Stat
           label="ADA Price"
-          value={adaMarket ? `$${adaMarket.price.toFixed(4)}` : "$—"}
-          change={adaMarket ? `${adaMarket.change24h >= 0 ? "+" : ""}${adaMarket.change24h.toFixed(1)}%` : undefined}
-          positive={adaMarket ? adaMarket.change24h >= 0 : undefined}
+          value={ada ? fmtUsd(ada.price, 4) : "—"}
+          delta={ada ? fmtPct(ada.change24h) : undefined}
+          positive={ada ? ada.change24h >= 0 : undefined}
         />
-        <StatCard
+        <Stat
           label="Market Cap"
-          value={adaMarket ? `$${formatLargeUsd(adaMarket.marketCap)}` : "$—"}
+          value={ada ? fmtUsd(ada.marketCap) : "—"}
+          delta={ada ? fmtPct(ada.change24h) : undefined}
+          positive={ada ? ada.change24h >= 0 : undefined}
         />
-        <StatCard label="24h DEX Volume" value={dexVol} />
-        <StatCard label="Epoch" value={String(epoch)} sublabel={`${txCount} txs (24h)`} />
+        <Stat
+          label="24H Volume"
+          value={ada ? fmtUsd(ada.volume24h) : "—"}
+        />
+        <Stat
+          label="Epoch"
+          value={tip ? fmtCount(tip.epoch) : "—"}
+          sub={tip && epochProgress != null ? `${epochProgress}% complete` : undefined}
+        />
       </div>
 
-      {/* Two-column layout */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 16,
-      }}>
-        {/* Top Movers */}
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          padding: 20,
-        }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-            Top Movers (24h)
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {topMovers.length > 0 ? (
-              topMovers.map((m) => (
-                <TokenRow
-                  key={m.asset}
-                  rank={m.rank}
-                  name={m.ticker || m.asset.slice(0, 8) + "..."}
-                  price={parseFloat(m.priceAda).toFixed(4)}
-                  change={m.change24h ? `${parseFloat(m.change24h) >= 0 ? "+" : ""}${m.change24h}%` : "—"}
-                  positive={m.change24h ? parseFloat(m.change24h) >= 0 : true}
-                />
-              ))
-            ) : (
-              <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 13 }}>
-                Waiting for DEX data...
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Network Activity */}
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          padding: 20,
-        }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-            Network Activity
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <ActivityRow label="Transactions (24h)" value={txCount} />
-            <ActivityRow label="DEX Volume (24h)" value={dexVol} />
-            <ActivityRow label="Latest Block" value={stats?.latestBlock?.height?.toLocaleString() ?? "—"} />
-            <ActivityRow label="Epoch" value={String(epoch)} />
-          </div>
-        </div>
+      {/* Chart + movers */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+        <ChartTile ada={ada} />
+        <MoversTile gainers={gainers} losers={losers} />
       </div>
+
+      {/* Network activity */}
+      <NetworkActivity tip={tip} />
     </div>
   );
 }
 
-function formatLargeUsd(value: number): string {
-  if (value >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(2)}T`;
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toFixed(0);
-}
+/* ─── Tiles ──────────────────────────────────────────────── */
 
-function formatLovelace(lovelace: string): string {
-  const ada = Number(lovelace) / 1_000_000;
-  if (ada >= 1_000_000) return `${(ada / 1_000_000).toFixed(1)}M ADA`;
-  if (ada >= 1_000) return `${(ada / 1_000).toFixed(1)}K ADA`;
-  return `${ada.toFixed(0)} ADA`;
-}
-
-function StatCard({ label, value, change, sublabel, positive }: {
-  label: string;
-  value: string;
-  change?: string;
-  sublabel?: string;
-  positive?: boolean;
+function Stat({ label, value, delta, sub, positive }: {
+  label: string; value: string; delta?: string; sub?: string; positive?: boolean;
 }) {
   return (
     <div style={{
-      background: "var(--color-bg-elevated)",
-      borderRadius: "var(--radius-lg)",
-      border: "1px solid var(--color-border)",
-      padding: "16px 20px",
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: "14px 16px",
     }}>
-      <div style={{
-        fontSize: 12,
-        fontWeight: 500,
-        color: "var(--color-text-muted)",
-        marginBottom: 8,
-        textTransform: "uppercase" as const,
-        letterSpacing: 0.5,
-      }}>
+      <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6, fontWeight: 700 }}>
         {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-primary)" }}>
-          {value}
-        </span>
-        {change && (
-          <span style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: positive ? "var(--color-positive)" : "var(--color-negative)",
-          }}>
-            {change}
+        <span style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{value}</span>
+        {delta && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: positive ? "var(--color-positive)" : "var(--color-negative)" }}>
+            {delta}
           </span>
         )}
+        {sub && <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{sub}</span>}
       </div>
-      {sublabel && (
-        <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
-          {sublabel}
+    </div>
+  );
+}
+
+function ChartTile({ ada }: { ada: AdaMarket | null }) {
+  const [tf, setTf] = useState<Timeframe>("1D");
+  const [series, setSeries] = useState<Array<[number, number]>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const baseDays = tf === "1W" ? 7 : 1;
+    fetchAdaSeries(baseDays).then((all) => {
+      if (cancelled) return;
+      if (!all || all.length === 0) {
+        setSeries([]);
+        setLoading(false);
+        return;
+      }
+      const now = all[all.length - 1][0];
+      const windowMs =
+        tf === "1H" ? 60 * 60_000 :
+        tf === "4H" ? 4 * 60 * 60_000 :
+        tf === "1D" ? 24 * 60 * 60_000 :
+        7 * 24 * 60 * 60_000;
+      const sliced = all.filter(([t]) => t >= now - windowMs);
+      setSeries(sliced.length > 1 ? sliced : all);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [tf]);
+
+  const w = 600, h = 240, pad = 8;
+  const hasData = series.length > 1;
+  const first = hasData ? series[0][1] : 0;
+  const last = hasData ? series[series.length - 1][1] : 0;
+  const tfChange = hasData ? ((last - first) / first) * 100 : 0;
+  const trendUp = hasData ? last >= first : (!ada || ada.change24h >= 0);
+
+  let line = "";
+  let area = "";
+  if (hasData) {
+    const vals = series.map((p) => p[1]);
+    const max = Math.max(...vals);
+    const min = Math.min(...vals);
+    const range = max - min || 1;
+    const xStep = (w - pad * 2) / (series.length - 1);
+    const norm = (v: number) => h - pad - ((v - min) / range) * (h - pad * 2);
+    line = series.map(([, v], i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${norm(v)}`).join(" ");
+    area = `${line} L ${pad + (series.length - 1) * xStep} ${h} L ${pad} ${h} Z`;
+  }
+
+  return (
+    <div style={{
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 18, minHeight: 280,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 8 }}>
+            ADA/USD
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+              {ada ? fmtUsd(ada.price, 4) : (hasData ? fmtUsd(last, 4) : "—")}
+            </span>
+            {hasData && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: trendUp ? "var(--color-positive)" : "var(--color-negative)" }}>
+                {fmtPct(tfChange)} <span style={{ color: "var(--color-text-muted)", fontWeight: 500 }}>· {tf}</span>
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
+            CoinGecko · {series.length} points
+          </div>
         </div>
-      )}
+        <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--color-bg-secondary)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
+          {(["1H", "4H", "1D", "1W"] as Timeframe[]).map((t) => {
+            const active = tf === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTf(t)}
+                style={{
+                  padding: "4px 10px", borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                  background: active ? "var(--color-bg-hover)" : "transparent",
+                  color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                  transition: "color 120ms, background 120ms",
+                }}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 240, display: "block" }}>
+        <defs>
+          <linearGradient id="dashUp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(32,235,122,0.35)" />
+            <stop offset="100%" stopColor="rgba(32,235,122,0)" />
+          </linearGradient>
+          <linearGradient id="dashDown" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,66,43,0.30)" />
+            <stop offset="100%" stopColor="rgba(255,66,43,0)" />
+          </linearGradient>
+        </defs>
+        {hasData ? (
+          <>
+            <path d={area} fill={trendUp ? "url(#dashUp)" : "url(#dashDown)"} />
+            <path d={line} fill="none" stroke={trendUp ? "var(--color-brand)" : "var(--color-negative)"} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          </>
+        ) : (
+          <text x={w / 2} y={h / 2} textAnchor="middle" fill="var(--color-text-muted)" fontSize="11" fontFamily="var(--font-mono)">
+            {loading ? "loading…" : "no data"}
+          </text>
+        )}
+      </svg>
     </div>
   );
 }
 
-function TokenRow({ rank, name, price, change, positive }: {
-  rank: number; name: string; price: string; change: string; positive: boolean;
-}) {
+function MoversTile({ gainers, losers }: { gainers: CntToken[]; losers: CntToken[] }) {
+  const [tab, setTab] = useState<"gainers" | "losers">("gainers");
+  const rows = tab === "gainers" ? gainers : losers;
+  const loading = gainers.length === 0 && losers.length === 0;
+
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "8px 12px", borderRadius: "var(--radius-md)", background: "var(--color-bg-hover)",
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 18,
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 12, color: "var(--color-text-muted)", width: 20, textAlign: "center" as const }}>{rank}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{name}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Top Movers</div>
+        <span style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: 0.6 }}>CNT · 24H</span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        <span style={{ fontSize: 13, color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>{price} ADA</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: positive ? "var(--color-positive)" : "var(--color-negative)", minWidth: 60, textAlign: "right" as const }}>{change}</span>
+      <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--color-bg-secondary)", borderRadius: 6, border: "1px solid var(--color-border)", marginBottom: 10 }}>
+        {(["gainers", "losers"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              flex: 1, padding: "5px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+              background: tab === t ? "var(--color-bg-hover)" : "transparent",
+              color: tab === t ? "var(--color-text-primary)" : "var(--color-text-muted)",
+              textTransform: "uppercase",
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {loading ? (
+          [0,1,2,3,4].map((i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)" }}>
+              <span style={{ width: 60, height: 10, background: "var(--color-bg-secondary)", borderRadius: 3 }} />
+              <span style={{ width: 40, height: 10, background: "var(--color-bg-secondary)", borderRadius: 3 }} />
+            </div>
+          ))
+        ) : rows.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--color-text-muted)", textAlign: "center", padding: "16px 0" }}>
+            No {tab} right now
+          </div>
+        ) : (
+          rows.map((r) => {
+            const pct = r.change24h ?? 0;
+            return (
+              <Link
+                key={r.id}
+                href={`/tokens/${r.id}`}
+                style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)",
+                  color: "inherit",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{r.symbol}</span>
+                  <span style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
+                    {r.name}
+                  </span>
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
+                  {fmtPct(pct)}
+                </span>
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );
 }
 
-function ActivityRow({ label, value }: { label: string; value: string }) {
+function NetworkActivity({ tip }: { tip: ChainTip | null }) {
+  const blockAge = tip ? Math.max(0, Math.floor(Date.now() / 1000 - tip.blockTime)) : null;
+
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "8px 12px", borderRadius: "var(--radius-md)", background: "var(--color-bg-hover)",
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 18,
     }}>
-      <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{value}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Network</div>
+        <span style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: 0.6 }}>KOIOS · MAINNET</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <Row label="Latest block" value={tip ? fmtCount(tip.block) : "—"} />
+        <Row label="Block age" value={blockAge != null ? `${blockAge}s ago` : "—"} />
+        <Row label="Epoch slot" value={tip ? fmtCount(tip.epochSlot) : "—"} />
+        <Row label="Tip hash" value={tip ? `${tip.hash.slice(0, 8)}…` : "—"} mono />
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4, fontWeight: 700 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 600, fontFamily: mono ? "var(--font-mono)" : "inherit" }}>{value}</div>
     </div>
   );
 }
