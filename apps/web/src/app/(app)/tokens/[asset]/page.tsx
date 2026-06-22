@@ -1,490 +1,306 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import CandleChart from "../../../../components/CandleChart";
-import { fetchToken, fetchCandles, fetchSwaps, fetchTokenHolders } from "../../../../lib/api";
-import type { TokenHoldersData } from "../../../../lib/api";
+import Link from "next/link";
+import {
+  fetchTokenDetail,
+  fetchTokenSeries,
+  fmtUsd,
+  fmtPct,
+  fmtCount,
+  type TokenDetail,
+} from "../../../../lib/public-data";
 
-interface TokenDetail {
-  asset: string;
-  policyId: string;
-  assetName: string;
-  ticker: string | null;
-  name: string | null;
-  decimals: number;
-  logoUrl: string | null;
-  description: string | null;
-  website: string | null;
-  updatedAt: number;
-  price: {
-    priceAda: string;
-    priceUsd: string | null;
-    volumeAda: string;
-    timestamp: number;
-  } | null;
-  changePercent24h: number | null;
-  volume24h: string;
-  holders: number;
-  totalSupply: string | null;
-}
-
-interface CandleData {
-  openTime: number;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volumeAda: string;
-}
-
-interface SwapData {
-  txHash: string;
-  dex: string;
-  assetIn: string;
-  amountIn: string;
-  assetOut: string;
-  amountOut: string;
-  timestamp: number;
-}
-
-const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
-
-function formatNumber(value: string | number, decimals = 2): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "—";
-  if (num >= 1_000_000) return (num / 1_000_000).toFixed(decimals) + "M";
-  if (num >= 1_000) return (num / 1_000).toFixed(decimals) + "K";
-  return num.toFixed(decimals);
-}
-
-function truncateMiddle(str: string, startLen = 8, endLen = 8): string {
-  if (str.length <= startLen + endLen + 3) return str;
-  return str.slice(0, startLen) + "..." + str.slice(-endLen);
-}
+type Timeframe = "1D" | "7D" | "30D" | "1Y";
+const TF_TO_DAYS: Record<Timeframe, number> = { "1D": 1, "7D": 7, "30D": 30, "1Y": 365 };
 
 export default function TokenDetailPage() {
-  const params = useParams();
-  const asset = params.asset as string;
-
+  const params = useParams<{ asset: string }>();
+  const id = decodeURIComponent(params.asset);
   const [token, setToken] = useState<TokenDetail | null>(null);
-  const [interval, setInterval] = useState<string>("1h");
-  const [candles, setCandles] = useState<CandleData[]>([]);
-  const [swaps, setSwaps] = useState<SwapData[]>([]);
-  const [holders, setHolders] = useState<TokenHoldersData | null>(null);
-  const [holdersLoading, setHoldersLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadMarketData = useCallback(async (tokenAsset: string, candleInterval: string) => {
-    try {
-      const [candleData, swapData] = await Promise.all([
-        fetchCandles(tokenAsset, candleInterval, 168),
-        fetchSwaps(tokenAsset, 20),
-      ]);
-      setCandles(candleData);
-      setSwaps(swapData);
-    } catch {
-      // candle/swap errors are non-fatal; token info still shows
-    }
-  }, []);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!asset) return;
     setLoading(true);
-    setError(null);
-    fetchToken(decodeURIComponent(asset))
-      .then((data) => {
-        if (!data) {
-          setError("Token not found.");
-          return;
-        }
-        setToken(data as TokenDetail);
-        setHoldersLoading(true);
-        fetchTokenHolders(decodeURIComponent(asset))
-          .then(setHolders)
-          .catch(() => setHolders(null))
-          .finally(() => setHoldersLoading(false));
-        return loadMarketData(decodeURIComponent(asset), interval);
-      })
-      .catch(() => setError("Could not load token data. Is the API gateway running?"))
-      .finally(() => setLoading(false));
-  }, [asset, loadMarketData, interval]);
-
-  useEffect(() => {
-    if (token) {
-      loadMarketData(decodeURIComponent(asset), interval);
-    }
-  }, [interval, asset, token, loadMarketData]);
+    fetchTokenDetail(id).then((t) => {
+      if (!t) setNotFound(true);
+      setToken(t);
+      setLoading(false);
+    });
+  }, [id]);
 
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
-        Loading token data...
+      <div style={{ padding: 40, color: "var(--color-text-muted)", fontSize: 13 }}>
+        Loading {id}…
       </div>
     );
   }
 
-  if (error || !token) {
+  if (notFound || !token) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "var(--color-negative)" }}>
-        {error || "Token not found."}
+      <div style={{ padding: 40 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Token not found</h1>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 16 }}>
+          We couldn&apos;t resolve <code style={{ background: "var(--color-bg-elevated)", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--color-border)" }}>{id}</code> on CoinGecko. The ID may be wrong or unlisted.
+        </p>
+        <Link href="/screener" style={{ color: "var(--color-brand)", fontSize: 13 }}>← Back to screener</Link>
       </div>
     );
   }
-
-  const priceAda = token.price ? parseFloat(token.price.priceAda) : null;
-  const priceUsd = token.price?.priceUsd ? parseFloat(token.price.priceUsd) : null;
-  const change = token.changePercent24h;
-  const isPositive = change !== null && change >= 0;
 
   return (
     <div>
-      {/* Header: Token name + live price */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>
-              {token.ticker || token.name || truncateMiddle(token.asset)}
-            </h1>
-            {token.ticker && token.name && (
-              <span style={{ fontSize: 14, color: "var(--color-text-muted)", fontWeight: 400 }}>
-                {token.name}
+      {/* Breadcrumb */}
+      <nav style={{ marginBottom: 18, fontSize: 12, color: "var(--color-text-muted)" }}>
+        <Link href="/screener" style={{ color: "var(--color-text-secondary)" }}>Screener</Link>
+        <span style={{ margin: "0 8px" }}>/</span>
+        <span>{token.symbol}</span>
+      </nav>
+
+      {/* Header */}
+      <header style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+        {token.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={token.imageUrl} alt={token.name} width={48} height={48} style={{ borderRadius: 8, background: "var(--color-bg-elevated)" }} />
+        )}
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6 }}>{token.name}</h1>
+            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
+              {token.symbol}
+            </span>
+            {token.marketCapRank && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+                padding: "3px 8px", borderRadius: 3, color: "var(--color-text-secondary)",
+                background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)",
+              }}>
+                RANK #{token.marketCapRank}
               </span>
             )}
           </div>
-          <p style={{ color: "var(--color-text-secondary)", fontSize: 13, margin: 0 }}>
-            Live price and market data
-          </p>
+          {token.description && (
+            <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 6, lineHeight: 1.55, maxWidth: 760 }}>
+              {token.description}
+            </p>
+          )}
         </div>
-
-        {/* Price display */}
         <div style={{ textAlign: "right" }}>
-          {priceAda !== null ? (
-            <>
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 700 }}>
-                {priceAda < 0.01 ? priceAda.toFixed(6) : priceAda.toFixed(4)} <span style={{ fontSize: 16, color: "var(--color-text-muted)", fontWeight: 400 }}>ADA</span>
-              </div>
-              {priceUsd !== null && (
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--color-text-secondary)", marginBottom: 4 }}>
-                  ${priceUsd < 0.01 ? priceUsd.toFixed(6) : priceUsd.toFixed(4)} USD
-                </div>
-              )}
-              {change !== null && (
-                <div style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "3px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: "var(--font-mono)",
-                  background: isPositive ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)",
-                  color: isPositive ? "var(--color-positive)" : "var(--color-negative)",
-                }}>
-                  {isPositive ? "\u25B2" : "\u25BC"} {Math.abs(change).toFixed(2)}%
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--color-text-muted)" }}>
-              No price data
+          <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+            {fmtUsd(token.price, token.price < 1 ? 4 : 2)}
+          </div>
+          {token.change24h != null && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: token.change24h >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
+              {fmtPct(token.change24h)} (24H)
             </div>
           )}
         </div>
-      </div>
-
-      {/* Info + Stats grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-        {/* Token Info Panel */}
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          padding: 20,
-        }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 16, marginTop: 0 }}>
-            Token Info
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <InfoRow label="Ticker" value={token.ticker || "—"} mono />
-            <InfoRow label="Name" value={token.name || "—"} />
-            <InfoRow label="Policy ID" value={truncateMiddle(token.policyId, 12, 12)} mono title={token.policyId} />
-            <InfoRow label="Decimals" value={String(token.decimals)} mono />
-            {token.description && (
-              <div>
-                <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginBottom: 4 }}>Description</div>
-                <div style={{ fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                  {token.description}
-                </div>
-              </div>
-            )}
-            {token.website && (
-              <InfoRow label="Website" value={token.website} link />
-            )}
-          </div>
-        </div>
-
-        {/* Market Stats Panel */}
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          padding: 20,
-        }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 16, marginTop: 0 }}>
-            Market Stats
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <StatCard
-              label="24h Volume"
-              value={`${formatNumber(token.volume24h)} ADA`}
-            />
-            <StatCard
-              label="24h Change"
-              value={change !== null ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%` : "—"}
-              color={change !== null ? (change >= 0 ? "var(--color-positive)" : "var(--color-negative)") : undefined}
-            />
-            <StatCard
-              label="Unique Traders"
-              value={formatNumber(token.holders, 0)}
-            />
-            <StatCard
-              label="Total Supply"
-              value={token.totalSupply ? formatNumber(token.totalSupply, 0) : "—"}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Interval selector */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {INTERVALS.map((iv) => (
-          <button
-            key={iv}
-            onClick={() => setInterval(iv)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "var(--radius-sm)",
-              fontSize: 13,
-              fontWeight: interval === iv ? 600 : 400,
-              background: interval === iv ? "var(--color-brand)" : "var(--color-bg-elevated)",
-              color: interval === iv ? "#fff" : "var(--color-text-secondary)",
-              border: interval === iv ? "none" : "1px solid var(--color-border)",
-              cursor: "pointer",
-            }}
-          >
-            {iv}
-          </button>
-        ))}
-      </div>
+      </header>
 
       {/* Chart */}
-      <div style={{
-        background: "var(--color-bg-elevated)",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--color-border)",
-        padding: 16,
-        marginBottom: 16,
-      }}>
-        {candles.length === 0 ? (
-          <div style={{ height: 400, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-muted)" }}>
-            No candle data available for this token.
-          </div>
-        ) : (
-          <CandleChart data={candles} height={400} />
-        )}
+      <PriceChart id={token.id} symbol={token.symbol} />
+
+      {/* Stat grid */}
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <Stat label="Market Cap" value={fmtUsd(token.marketCap)} />
+        <Stat label="24H Volume" value={fmtUsd(token.volume24h)} />
+        <Stat
+          label="24H Range"
+          value={`${fmtUsd(token.low24h, token.low24h < 1 ? 4 : 2)} — ${fmtUsd(token.high24h, token.high24h < 1 ? 4 : 2)}`}
+        />
+        <Stat
+          label="All-Time High"
+          value={fmtUsd(token.ath, token.ath < 1 ? 4 : 2)}
+          sub={token.athChangePct != null ? `${fmtPct(token.athChangePct)} from ATH` : undefined}
+          subColor={token.athChangePct != null && token.athChangePct >= 0 ? "positive" : "negative"}
+        />
       </div>
 
-      {/* Recent trades */}
-      <div style={{
-        background: "var(--color-bg-elevated)",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--color-border)",
-        padding: 20,
-      }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, marginTop: 0 }}>
-          Recent Trades
-        </h2>
-        {swaps.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 14 }}>
-            No recent trades found.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {/* Header */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr 100px 120px",
-              gap: 8,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: "var(--color-text-muted)",
-              textTransform: "uppercase" as const,
-              letterSpacing: 0.5,
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <Stat label="Circulating Supply" value={`${fmtCount(Math.round(token.circulatingSupply))} ${token.symbol}`} />
+        <Stat label="Max Supply" value={token.maxSupply ? `${fmtCount(Math.round(token.maxSupply))} ${token.symbol}` : "∞"} />
+        <Stat label="FDV" value={token.fdv ? fmtUsd(token.fdv) : "—"} />
+        <Stat
+          label="Multi-period change"
+          value={`24H ${token.change24h != null ? fmtPct(token.change24h) : "—"}`}
+          sub={`7D ${token.change7d != null ? fmtPct(token.change7d) : "—"} · 30D ${token.change30d != null ? fmtPct(token.change30d) : "—"}`}
+        />
+      </div>
+
+      {/* Links */}
+      {(token.homepage || token.twitter || token.policyId) && (
+        <div style={{ marginTop: 24, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {token.homepage && (
+            <ExternalLink href={token.homepage} label="Website" />
+          )}
+          {token.twitter && (
+            <ExternalLink href={`https://x.com/${token.twitter}`} label={`@${token.twitter}`} />
+          )}
+          {token.policyId && (
+            <span style={{
+              padding: "8px 12px", borderRadius: 6,
+              background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)",
+              fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--color-text-muted)",
             }}>
-              <span>Type</span>
-              <span>Amount</span>
-              <span>Price</span>
-              <span>DEX</span>
-              <span>Time</span>
-            </div>
-            {swaps.map((swap, i) => {
-              const decodedAsset = decodeURIComponent(asset);
-              const isBuy = swap.assetOut === decodedAsset;
-              return (
-                <div
-                  key={`${swap.txHash}-${i}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr 100px 120px",
-                    gap: 8,
-                    padding: "8px 12px",
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--color-bg-hover)",
-                    fontSize: 13,
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  <span style={{ color: isBuy ? "var(--color-positive)" : "var(--color-negative)", fontWeight: 600 }}>
-                    {isBuy ? "BUY" : "SELL"}
-                  </span>
-                  <span style={{ color: "var(--color-text-secondary)" }}>
-                    {isBuy ? swap.amountOut : swap.amountIn}
-                  </span>
-                  <span style={{ color: "var(--color-text-secondary)" }}>
-                    {isBuy ? swap.amountIn : swap.amountOut}
-                  </span>
-                  <span style={{ color: "var(--color-text-muted)" }}>
-                    {swap.dex}
-                  </span>
-                  <span style={{ color: "var(--color-text-muted)" }}>
-                    {new Date(swap.timestamp * 1000).toLocaleTimeString()}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              policy {token.policyId.slice(0, 12)}…
+            </span>
+          )}
+        </div>
+      )}
 
-      {/* Top Holders */}
-      <div style={{
-        background: "var(--color-bg-elevated)",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--color-border)",
-        padding: 20,
-        marginTop: 16,
-      }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, marginTop: 0 }}>
-          Top Holders
-        </h2>
-        {holdersLoading ? (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 14 }}>
-            Loading holder data...
-          </div>
-        ) : !holders || holders.holders.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "var(--color-text-muted)", fontSize: 14 }}>
-            No holder data available.
-          </div>
-        ) : (
-          <>
-            {/* Concentration metrics */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-              <StatCard label="Top 10 Concentration" value={`${holders.concentration.top10Percentage.toFixed(2)}%`} />
-              <StatCard label="Top 20 Concentration" value={`${holders.concentration.top20Percentage.toFixed(2)}%`} />
-              <StatCard label="Holders (sampled)" value={String(holders.concentration.holderCount)} />
-            </div>
-            {/* Holder table */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "60px 1fr 1fr 100px",
-                gap: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--color-text-muted)",
-                textTransform: "uppercase" as const,
-                letterSpacing: 0.5,
-              }}>
-                <span>Rank</span>
-                <span>Address</span>
-                <span>Quantity</span>
-                <span>% Supply</span>
-              </div>
-              {holders.holders.map((h) => (
-                <div
-                  key={h.address}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "60px 1fr 1fr 100px",
-                    gap: 8,
-                    padding: "8px 12px",
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--color-bg-hover)",
-                    fontSize: 13,
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  <span style={{ color: "var(--color-text-muted)" }}>#{h.rank}</span>
-                  <span style={{ color: "var(--color-text-secondary)" }} title={h.address}>
-                    {truncateMiddle(h.address, 10, 8)}
-                  </span>
-                  <span style={{ color: "var(--color-text-secondary)" }}>
-                    {formatNumber(h.quantity, 0)}
-                  </span>
-                  <span style={{ color: "var(--color-text-primary)", fontWeight: 600 }}>
-                    {h.percentage.toFixed(2)}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+      <div style={{ marginTop: 32, fontSize: 11, color: "var(--color-text-muted)" }}>
+        Market data via{" "}
+        <a href="https://www.coingecko.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>CoinGecko</a>
       </div>
     </div>
   );
 }
 
-function InfoRow({ label, value, mono, link, title }: { label: string; value: string; mono?: boolean; link?: boolean; title?: string }) {
+function ExternalLink({ href, label }: { href: string; label: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{label}</span>
-      {link ? (
-        <a
-          href={value.startsWith("http") ? value : `https://${value}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 13, color: "var(--color-brand)", textDecoration: "none", fontFamily: mono ? "var(--font-mono)" : undefined }}
-          title={title}
-        >
-          {value}
-        </a>
-      ) : (
-        <span style={{ fontSize: 13, color: "var(--color-text-primary)", fontFamily: mono ? "var(--font-mono)" : undefined }} title={title}>
-          {value}
-        </span>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        padding: "8px 12px", borderRadius: 6,
+        background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)",
+        fontSize: 12, fontWeight: 600, color: "var(--color-text-primary)",
+      }}
+    >
+      {label} ↗
+    </a>
+  );
+}
+
+function Stat({ label, value, sub, subColor }: {
+  label: string; value: string; sub?: string; subColor?: "positive" | "negative";
+}) {
+  return (
+    <div style={{
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: "14px 16px",
+    }}>
+      <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{value}</div>
+      {sub && (
+        <div style={{
+          marginTop: 4, fontSize: 11,
+          color: subColor === "positive" ? "var(--color-positive)" : subColor === "negative" ? "var(--color-negative)" : "var(--color-text-muted)",
+          fontFamily: subColor ? "var(--font-mono)" : "inherit",
+        }}>
+          {sub}
+        </div>
       )}
     </div>
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
+function PriceChart({ id, symbol }: { id: string; symbol: string }) {
+  const [tf, setTf] = useState<Timeframe>("7D");
+  const [series, setSeries] = useState<Array<[number, number]>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchTokenSeries(id, TF_TO_DAYS[tf]).then((data) => {
+      if (cancelled) return;
+      setSeries(data ?? []);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [id, tf]);
+
+  const w = 800, h = 280, pad = 8;
+  const hasData = series.length > 1;
+  const first = hasData ? series[0][1] : 0;
+  const last = hasData ? series[series.length - 1][1] : 0;
+  const tfChange = hasData ? ((last - first) / first) * 100 : 0;
+  const trendUp = hasData ? last >= first : true;
+
+  let line = "", area = "";
+  if (hasData) {
+    const vals = series.map((p) => p[1]);
+    const max = Math.max(...vals);
+    const min = Math.min(...vals);
+    const range = max - min || 1;
+    const xStep = (w - pad * 2) / (series.length - 1);
+    const norm = (v: number) => h - pad - ((v - min) / range) * (h - pad * 2);
+    line = series.map(([, v], i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${norm(v)}`).join(" ");
+    area = `${line} L ${pad + (series.length - 1) * xStep} ${h} L ${pad} ${h} Z`;
+  }
+
   return (
     <div style={{
-      background: "var(--color-bg-hover)",
-      borderRadius: "var(--radius-md)",
-      padding: "14px 16px",
+      background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+      border: "1px solid var(--color-border)", padding: 18,
     }}>
-      <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-        {label}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 8 }}>
+            {symbol}/USD
+            {hasData && (
+              <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+                {fmtUsd(last, last < 1 ? 4 : 2)}
+              </span>
+            )}
+            {hasData && (
+              <span style={{ fontSize: 12, fontWeight: 600, color: trendUp ? "var(--color-positive)" : "var(--color-negative)" }}>
+                {fmtPct(tfChange)} <span style={{ color: "var(--color-text-muted)", fontWeight: 500 }}>· {tf}</span>
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
+            CoinGecko · {series.length} points
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--color-bg-secondary)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
+          {(["1D", "7D", "30D", "1Y"] as Timeframe[]).map((t) => {
+            const active = tf === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTf(t)}
+                style={{
+                  padding: "4px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                  background: active ? "var(--color-bg-hover)" : "transparent",
+                  color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                }}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--font-mono)", color: color || "var(--color-text-primary)" }}>
-        {value}
-      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 280, display: "block" }}>
+        <defs>
+          <linearGradient id="tokenUp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(32,235,122,0.35)" />
+            <stop offset="100%" stopColor="rgba(32,235,122,0)" />
+          </linearGradient>
+          <linearGradient id="tokenDown" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,66,43,0.30)" />
+            <stop offset="100%" stopColor="rgba(255,66,43,0)" />
+          </linearGradient>
+        </defs>
+        {hasData ? (
+          <>
+            <path d={area} fill={trendUp ? "url(#tokenUp)" : "url(#tokenDown)"} />
+            <path d={line} fill="none" stroke={trendUp ? "var(--color-brand)" : "var(--color-negative)"} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          </>
+        ) : (
+          <text x={w / 2} y={h / 2} textAnchor="middle" fill="var(--color-text-muted)" fontSize="11" fontFamily="var(--font-mono)">
+            {loading ? "loading…" : "no data"}
+          </text>
+        )}
+      </svg>
     </div>
   );
 }

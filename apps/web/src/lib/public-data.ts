@@ -154,6 +154,95 @@ export async function fetchTopLosers(limit = 5): Promise<CntToken[]> {
     .slice(0, limit);
 }
 
+export interface TokenDetail {
+  id: string;
+  symbol: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  price: number;
+  change24h: number | null;
+  change7d: number | null;
+  change30d: number | null;
+  marketCap: number;
+  marketCapRank: number | null;
+  volume24h: number;
+  high24h: number;
+  low24h: number;
+  ath: number;
+  athChangePct: number | null;
+  athDate: string;
+  circulatingSupply: number;
+  totalSupply: number | null;
+  maxSupply: number | null;
+  fdv: number | null;
+  homepage: string;
+  twitter: string;
+  policyId?: string;
+}
+
+/** Per-token detail. CoinGecko /coins/{id}. */
+export async function fetchTokenDetail(id: string): Promise<TokenDetail | null> {
+  try {
+    const res = await fetch(
+      `${COINGECKO_BASE}/coins/${encodeURIComponent(id)}?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const m = data.market_data ?? {};
+    return {
+      id: data.id,
+      symbol: (data.symbol ?? "").toUpperCase(),
+      name: data.name ?? id,
+      description: (data.description?.en ?? "").split(". ").slice(0, 2).join(". "),
+      imageUrl: data.image?.small ?? "",
+      price: m.current_price?.usd ?? 0,
+      change24h: m.price_change_percentage_24h ?? null,
+      change7d: m.price_change_percentage_7d ?? null,
+      change30d: m.price_change_percentage_30d ?? null,
+      marketCap: m.market_cap?.usd ?? 0,
+      marketCapRank: m.market_cap_rank ?? null,
+      volume24h: m.total_volume?.usd ?? 0,
+      high24h: m.high_24h?.usd ?? 0,
+      low24h: m.low_24h?.usd ?? 0,
+      ath: m.ath?.usd ?? 0,
+      athChangePct: m.ath_change_percentage?.usd ?? null,
+      athDate: m.ath_date?.usd ?? "",
+      circulatingSupply: m.circulating_supply ?? 0,
+      totalSupply: m.total_supply ?? null,
+      maxSupply: m.max_supply ?? null,
+      fdv: m.fully_diluted_valuation?.usd ?? null,
+      homepage: data.links?.homepage?.[0] ?? "",
+      twitter: data.links?.twitter_screen_name ?? "",
+      policyId: data.contract_address ?? undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Per-token price series. days=1 returns 5-min granularity; days=7 returns hourly. */
+const tokenSeriesCache = new Map<string, Array<[number, number]>>();
+export async function fetchTokenSeries(id: string, days: number): Promise<Array<[number, number]> | null> {
+  const key = `${id}:${days}`;
+  const cached = tokenSeriesCache.get(key);
+  if (cached) return cached;
+  try {
+    const res = await fetch(
+      `${COINGECKO_BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const prices = (data?.prices ?? []) as Array<[number, number]>;
+    tokenSeriesCache.set(key, prices);
+    return prices;
+  } catch {
+    return null;
+  }
+}
+
 /** Formatting helpers used across dashboard surfaces. */
 export function fmtUsd(n: number, digits = 4): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
