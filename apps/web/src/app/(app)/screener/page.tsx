@@ -1,201 +1,255 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
-  fetchScreenerTop,
-  fetchScreenerGainers,
-  fetchScreenerLosers,
-} from "../../../lib/api";
-import type { ScreenerRow } from "../../../lib/api";
-import EmptyState from "../../../components/EmptyState";
+  fetchCardanoTokens,
+  fmtUsd,
+  fmtPct,
+  type CntToken,
+} from "../../../lib/public-data";
 
-type Tab = "top" | "gainers" | "losers";
+type Tab = "top" | "gainers" | "losers" | "volume";
+type SortKey = "rank" | "price" | "change24h" | "marketCap" | "volume24h";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "top", label: "Top" },
-  { key: "gainers", label: "Gainers" },
-  { key: "losers", label: "Losers" },
+const TABS: { key: Tab; label: string; help: string }[] = [
+  { key: "top", label: "Top", help: "By market cap" },
+  { key: "gainers", label: "Gainers", help: "Best 24H performers" },
+  { key: "losers", label: "Losers", help: "Worst 24H performers" },
+  { key: "volume", label: "Volume", help: "By 24H trading volume" },
 ];
-
-const FETCHERS: Record<Tab, (limit?: number) => Promise<ScreenerRow[]>> = {
-  top: fetchScreenerTop,
-  gainers: fetchScreenerGainers,
-  losers: fetchScreenerLosers,
-};
 
 export default function ScreenerPage() {
   const [activeTab, setActiveTab] = useState<Tab>("top");
-  const [rows, setRows] = useState<ScreenerRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [tokens, setTokens] = useState<CntToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [sortDesc, setSortDesc] = useState(true);
 
-  const loadData = useCallback((tab: Tab) => {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    setError(false);
-    FETCHERS[tab](100)
+    fetchCardanoTokens(100)
       .then((data) => {
-        setRows(data);
+        if (cancelled) return;
+        setTokens(data);
+        setError(data.length === 0);
         setLoading(false);
       })
       .catch(() => {
+        if (cancelled) return;
         setError(true);
         setLoading(false);
       });
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    loadData(activeTab);
-  }, [activeTab, loadData]);
-
-  const handleTabChange = (tab: Tab) => {
-    if (tab !== activeTab) {
-      setActiveTab(tab);
+  const filtered = useMemo(() => {
+    let list = [...tokens];
+    if (activeTab === "gainers") {
+      list = list.filter((t) => (t.change24h ?? 0) > 0);
+    } else if (activeTab === "losers") {
+      list = list.filter((t) => (t.change24h ?? 0) < 0);
     }
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((t) => t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
+    }
+    // Apply tab-default sort, then allow column overrides
+    if (activeTab === "gainers")  list.sort((a, b) => (b.change24h ?? 0) - (a.change24h ?? 0));
+    else if (activeTab === "losers") list.sort((a, b) => (a.change24h ?? 0) - (b.change24h ?? 0));
+    else if (activeTab === "volume") list.sort((a, b) => b.volume24h - a.volume24h);
+    else list.sort((a, b) => b.marketCap - a.marketCap);
+
+    if (sortKey !== "rank") {
+      list.sort((a, b) => {
+        let aVal = 0, bVal = 0;
+        switch (sortKey) {
+          case "price":     aVal = a.price;       bVal = b.price;       break;
+          case "change24h": aVal = a.change24h ?? 0; bVal = b.change24h ?? 0; break;
+          case "marketCap": aVal = a.marketCap;   bVal = b.marketCap;   break;
+          case "volume24h": aVal = a.volume24h;   bVal = b.volume24h;   break;
+        }
+        return sortDesc ? bVal - aVal : aVal - bVal;
+      });
+    }
+    return list;
+  }, [tokens, activeTab, search, sortKey, sortDesc]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDesc(!sortDesc);
+    else { setSortKey(key); setSortDesc(true); }
   };
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
-        Market Screener
-      </h1>
-      <p style={{ color: "var(--color-text-secondary)", fontSize: 14, marginBottom: 24 }}>
-        Top tokens, biggest movers, trending, and new listings.
-      </p>
+      <header style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6, marginBottom: 4 }}>
+          Market Screener
+        </h1>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+          Cardano native tokens, live · powered by{" "}
+          <a href="https://www.coingecko.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
+            CoinGecko
+          </a>
+        </p>
+      </header>
 
-      {/* Tab navigation */}
-      <div style={{
-        display: "flex",
-        gap: 4,
-        marginBottom: 16,
-        borderBottom: "1px solid var(--color-border)",
-        paddingBottom: 0,
-      }}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => handleTabChange(tab.key)}
-            style={{
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: activeTab === tab.key ? 600 : 400,
-              color: activeTab === tab.key
-                ? "var(--color-brand)"
-                : "var(--color-text-secondary)",
-              background: "none",
-              border: "none",
-              borderBottom: activeTab === tab.key
-                ? "2px solid var(--color-brand)"
-                : "2px solid transparent",
-              cursor: "pointer",
-              marginBottom: -1,
-              transition: "color 0.15s, border-color 0.15s",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          padding: 40,
-          textAlign: "center",
-          color: "var(--color-text-muted)",
-        }}>
-          Loading market data...
-        </div>
-      ) : error || rows.length === 0 ? (
-        <EmptyState
-          icon="🔍"
-          title={error ? "API offline" : "No market data yet"}
-          description={error
-            ? "Start the API gateway and ingestion service to see live market data."
-            : "Once the ingestion and pricing services are running, tokens will appear here."
-          }
-        />
-      ) : (
-        <div style={{
-          background: "var(--color-bg-elevated)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--color-border)",
-          overflow: "hidden",
-        }}>
-          {/* Header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "50px 2fr 1fr 1fr 1fr",
-            gap: 16,
-            padding: "12px 20px",
-            borderBottom: "1px solid var(--color-border)",
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--color-text-muted)",
-            textTransform: "uppercase" as const,
-            letterSpacing: 0.5,
-          }}>
-            <span>#</span>
-            <span>Token</span>
-            <span style={{ textAlign: "right" }}>Price (ADA)</span>
-            <span style={{ textAlign: "right" }}>24h Change</span>
-            <span style={{ textAlign: "right" }}>24h Volume</span>
-          </div>
-          {/* Rows */}
-          {rows.map((r) => {
-            const change = r.change24h != null ? parseFloat(r.change24h) : null;
-            const changeColor = change != null
-              ? change >= 0
-                ? "var(--color-positive)"
-                : "var(--color-negative)"
-              : "var(--color-text-muted)";
-
+      {/* Controls */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--color-bg-elevated)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
+          {TABS.map((t) => {
+            const active = activeTab === t.key;
             return (
-              <div
-                key={r.asset}
+              <button
+                key={t.key}
+                onClick={() => { setActiveTab(t.key); setSortKey("rank"); }}
+                title={t.help}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "50px 2fr 1fr 1fr 1fr",
-                  gap: 16,
-                  padding: "12px 20px",
-                  borderBottom: "1px solid var(--color-border)",
-                  fontSize: 13,
-                  fontFamily: "var(--font-mono)",
-                  transition: "background 0.1s",
+                  padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
+                  background: active ? "var(--color-bg-hover)" : "transparent",
+                  color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+                  transition: "color 120ms, background 120ms",
+                  textTransform: "uppercase",
                 }}
               >
-                <span style={{ color: "var(--color-text-muted)" }}>
-                  {r.rank}
-                </span>
-                <span style={{ color: "var(--color-text-primary)", fontWeight: 500 }}>
-                  {r.ticker || (r.asset.length > 30
-                    ? `${r.asset.slice(0, 12)}...${r.asset.slice(-8)}`
-                    : r.asset)}
-                </span>
-                <span style={{ textAlign: "right", color: "var(--color-text-secondary)" }}>
-                  {parseFloat(r.priceAda).toFixed(6)}
-                </span>
-                <span style={{ textAlign: "right", color: changeColor, fontWeight: 500 }}>
-                  {change != null
-                    ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`
-                    : "—"}
-                </span>
-                <span style={{ textAlign: "right", color: "var(--color-text-muted)" }}>
-                  {formatVolume(r.volumeAda)}
-                </span>
-              </div>
+                {t.label}
+              </button>
             );
           })}
+        </div>
+        <input
+          type="text"
+          placeholder="Search symbol or name…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1, minWidth: 200, maxWidth: 320,
+            padding: "8px 12px", background: "var(--color-bg-elevated)",
+            border: "1px solid var(--color-border)", borderRadius: 6,
+            color: "var(--color-text-primary)", fontSize: 13, outline: "none",
+          }}
+        />
+      </div>
+
+      {/* Table */}
+      <div style={{
+        background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+        border: "1px solid var(--color-border)", overflow: "hidden",
+      }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--color-bg-secondary)", borderBottom: "1px solid var(--color-border)" }}>
+                <Th label="#" k="rank" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} width={50} align="left" />
+                <Th label="Token" k="rank" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="left" />
+                <Th label="Price" k="price" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
+                <Th label="24H %" k="change24h" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
+                <Th label="Market Cap" k="marketCap" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
+                <Th label="24H Vol" k="volume24h" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
+                    Could not load tokens. Try again later.
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
+                    No results.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((t, i) => <Row key={t.id} token={t} rank={i + 1} />)
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {!loading && !error && (
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 10, letterSpacing: 0.3 }}>
+          {filtered.length} of {tokens.length} tokens · click a row for token detail
         </div>
       )}
     </div>
   );
 }
 
-function formatVolume(lovelace: string): string {
-  const ada = Number(lovelace) / 1_000_000;
-  if (ada >= 1_000_000) return `${(ada / 1_000_000).toFixed(1)}M`;
-  if (ada >= 1_000) return `${(ada / 1_000).toFixed(1)}K`;
-  return ada.toFixed(0);
+function Th({ label, k, sortKey, sortDesc, onClick, align, width }: {
+  label: string; k: SortKey; sortKey: SortKey; sortDesc: boolean;
+  onClick: (k: SortKey) => void; align: "left" | "right"; width?: number;
+}) {
+  const active = sortKey === k;
+  return (
+    <th
+      onClick={() => onClick(k)}
+      style={{
+        padding: "10px 14px", textAlign: align,
+        fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase",
+        color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+        cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
+        width: width ? `${width}px` : undefined,
+      }}
+    >
+      {label}
+      {active && <span style={{ marginLeft: 4 }}>{sortDesc ? "↓" : "↑"}</span>}
+    </th>
+  );
+}
+
+function Row({ token, rank }: { token: CntToken; rank: number }) {
+  const pct = token.change24h ?? 0;
+  return (
+    <tr style={{ borderBottom: "1px solid var(--color-border-soft)" }}>
+      <Td><span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>{rank}</span></Td>
+      <Td>
+        <Link href={`/tokens/${token.id}`} style={{ display: "flex", flexDirection: "column", color: "inherit" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{token.symbol}</span>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>{token.name}</span>
+        </Link>
+      </Td>
+      <Td align="right" mono>{fmtUsd(token.price, token.price < 1 ? 4 : 2)}</Td>
+      <Td align="right">
+        <span style={{ fontSize: 13, fontWeight: 600, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
+          {fmtPct(pct)}
+        </span>
+      </Td>
+      <Td align="right" mono>{fmtUsd(token.marketCap)}</Td>
+      <Td align="right" mono>{fmtUsd(token.volume24h)}</Td>
+    </tr>
+  );
+}
+
+function Td({ children, align = "left", mono }: {
+  children: React.ReactNode; align?: "left" | "right"; mono?: boolean;
+}) {
+  return (
+    <td style={{
+      padding: "10px 14px", textAlign: align, fontSize: 13,
+      fontFamily: mono ? "var(--font-mono)" : "inherit",
+      whiteSpace: "nowrap",
+    }}>
+      {children}
+    </td>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <tr style={{ borderBottom: "1px solid var(--color-border-soft)" }}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <td key={i} style={{ padding: "12px 14px" }}>
+          <span style={{ display: "block", height: 10, width: "60%", background: "var(--color-bg-secondary)", borderRadius: 3 }} />
+        </td>
+      ))}
+    </tr>
+  );
 }

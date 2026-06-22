@@ -10,7 +10,6 @@
  * import change per page.
  */
 
-const KOIOS_BASE = "https://api.koios.rest/api/v1";
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 
 export interface ChainTip {
@@ -38,28 +37,16 @@ export interface CntToken {
   volume24h: number;
 }
 
-/** Cardano chain tip via Koios. Returns the latest known block + epoch. */
+/**
+ * Cardano chain tip. Proxied through our own /api/chain-tip route because
+ * Koios doesn't send CORS headers for browser callers. Cached 15s upstream.
+ */
 export async function fetchChainTip(): Promise<ChainTip | null> {
   try {
-    const res = await fetch(`${KOIOS_BASE}/tip`, { cache: "no-store" });
+    const res = await fetch(`/api/chain-tip`, { cache: "no-store" });
     if (!res.ok) return null;
-    const rows = (await res.json()) as Array<{
-      hash: string;
-      epoch_no: number;
-      abs_slot: number;
-      epoch_slot: number;
-      block_no: number;
-      block_time: number;
-    }>;
-    const tip = rows[0];
-    if (!tip) return null;
-    return {
-      block: tip.block_no,
-      epoch: tip.epoch_no,
-      epochSlot: tip.epoch_slot,
-      hash: tip.hash,
-      blockTime: tip.block_time,
-    };
+    const body = (await res.json()) as { data: ChainTip | null };
+    return body.data ?? null;
   } catch {
     return null;
   }
