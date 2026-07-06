@@ -56,7 +56,7 @@ export default function Header() {
           fontSize: 12,
           padding: "4px 10px",
           borderRadius: "var(--radius-sm)",
-          background: "rgba(45, 182, 124, 0.1)",
+          background: "var(--color-brand-soft)",
           color: "var(--color-brand)",
           fontWeight: 600,
         }}>
@@ -110,7 +110,7 @@ export default function Header() {
                 padding: "8px 16px",
                 borderRadius: "var(--radius-md)",
                 background: "var(--color-brand)",
-                color: "#fff",
+                color: "#001A0E",
                 fontWeight: 600,
                 opacity: connecting ? 0.7 : 1,
               }}

@@ -100,3 +100,90 @@ button {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ── Landing page utilities (appended — additive only, do not edit tokens above) ── */
+
+.lp-h1 {
+  font-size: clamp(36px, 8vw, 64px);
+  letter-spacing: -0.035em;
+}
+
+.lp-hero-pad {
+  padding: 88px 32px 72px;
+}
+
+.lp-section-pad {
+  padding: 72px 32px;
+}
+
+.lp-cta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lp-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.lp-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.lp-market-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+.lp-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+}
+
+.lp-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.lp-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes lp-shimmer {
+  0% { opacity: 0.45; }
+  50% { opacity: 1; }
+  100% { opacity: 0.45; }
+}
+
+.lp-skeleton {
+  display: inline-block;
+  background: var(--color-bg-elevated);
+  border-radius: 3px;
+  animation: lp-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (max-width: 1000px) {
+  .lp-feature-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .lp-market-grid { grid-template-columns: 1fr; }
+  .lp-grid-3 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .lp-nav-links { display: none; }
+  .lp-grid-2 { grid-template-columns: 1fr; }
+  .lp-feature-grid { grid-template-columns: 1fr; }
+  .lp-hero-pad { padding: 56px 20px 48px; }
+  .lp-section-pad { padding: 48px 20px; }
+}
