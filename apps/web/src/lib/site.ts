@@ -22,6 +22,13 @@ export const APP_HOST = APP_URL.replace(/^https?:\/\//, "");
 export const DOCS_URL =
   process.env.NEXT_PUBLIC_DOCS_URL || "https://basilisk-docs.vercel.app";
 
+/**
+ * Docusaurus serves doc content under `/docs` (routeBasePath in
+ * apps/docs/docusaurus.config.ts) — bare `${DOCS_URL}/<page>` links 404.
+ */
+export const DOCS_BASE_URL = `${DOCS_URL}/docs`;
+export const DOCS_AGENTS_MCP_URL = `${DOCS_BASE_URL}/agents/mcp`;
+
 export const GITHUB_URL =
   process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/wbaxterh/basilisk";
 
