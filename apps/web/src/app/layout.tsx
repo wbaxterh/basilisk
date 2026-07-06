@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Sidebar from "../components/Sidebar";
-import Header from "../components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Basilisk — Cardano Analytics",
-  description: "Cardano on-chain analytics, portfolio & trading platform.",
+  title: "Basilisk — Cardano Analytics & Agent-Native Trading",
+  description: "Real-time on-chain analytics, portfolio tracking, and the first x402 agent-native trading layer for Cardano.",
   icons: {
     icon: "/favicon.svg",
   },
@@ -15,23 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <Sidebar />
-        <div style={{
-          marginLeft: "var(--sidebar-width)",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-        }}>
-          <Header />
-          <main style={{
-            flex: 1,
-            padding: 24,
-          }}>
-            {children}
-          </main>
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

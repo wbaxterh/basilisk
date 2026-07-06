@@ -119,6 +119,32 @@ export async function fetchToken(asset: string): Promise<TokenDetailData | null>
   }
 }
 
+// -- Holders --
+
+export interface HolderEntry {
+  rank: number;
+  address: string;
+  quantity: string;
+  percentage: number;
+}
+
+export interface TokenHoldersData {
+  holders: HolderEntry[];
+  totalSupply: string;
+  concentration: {
+    top10Percentage: number;
+    top20Percentage: number;
+    holderCount: number;
+  };
+}
+
+export async function fetchTokenHolders(asset: string): Promise<TokenHoldersData> {
+  const res = await fetchApi<{ data: TokenHoldersData }>(
+    `/api/tokens/${encodeURIComponent(asset)}/holders`,
+  );
+  return res.data;
+}
+
 // -- Screener --
 
 export interface ScreenerRow {
@@ -163,6 +189,18 @@ interface WalletHoldingsResponse {
 
 export async function fetchWalletHoldings(stakeAddress: string): Promise<WalletHoldingsResponse> {
   return fetchApi<WalletHoldingsResponse>(`/api/wallets/${encodeURIComponent(stakeAddress)}/holdings`);
+}
+
+export interface PortfolioSnapshot {
+  time: number;
+  totalValueAda: string;
+}
+
+export async function fetchPortfolioHistory(stakeAddress: string): Promise<PortfolioSnapshot[]> {
+  const res = await fetchApi<{ data: PortfolioSnapshot[] }>(
+    `/api/wallets/${encodeURIComponent(stakeAddress)}/history`,
+  );
+  return res.data;
 }
 
 export async function trackWallet(stakeAddress: string, label?: string): Promise<void> {

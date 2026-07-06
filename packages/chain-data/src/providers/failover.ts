@@ -66,6 +66,13 @@ export class FailoverProvider implements ChainDataProvider {
     return this.withFailover(() => this.active().getTip());
   }
 
+  async getAssetAddresses(
+    asset: string,
+    opts?: QueryOptions,
+  ): Promise<Array<{ address: string; quantity: string }>> {
+    return this.withFailover(() => this.active().getAssetAddresses(asset, opts));
+  }
+
   async isHealthy(): Promise<boolean> {
     const primaryHealthy = await this.primary.isHealthy();
     if (primaryHealthy) return true;

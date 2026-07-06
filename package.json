@@ -2,7 +2,7 @@
   "name": "basilisk",
   "version": "0.1.0",
   "private": true,
-  "description": "Basilisk \u2014 Cardano on-chain analytics, portfolio & trading platform (monorepo)",
+  "description": "Basilisk — Cardano on-chain analytics, portfolio & trading platform (monorepo)",
   "workspaces": [
     "apps/*",
     "services/*",
@@ -24,5 +24,9 @@
   },
   "engines": {
     "node": ">=20.18.0"
+  },
+  "dependencies": {
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   }
 }

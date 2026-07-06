@@ -133,6 +133,21 @@ export class BlockfrostProvider implements ChainDataProvider {
     };
   }
 
+  async getAssetAddresses(
+    asset: string,
+    opts?: QueryOptions,
+  ): Promise<Array<{ address: string; quantity: string }>> {
+    const raw = await this.api.assetsAddresses(asset, {
+      page: opts?.page ?? 1,
+      count: opts?.count ?? 100,
+      order: opts?.order ?? "desc",
+    });
+    return raw.map((entry) => ({
+      address: entry.address,
+      quantity: entry.quantity,
+    }));
+  }
+
   async isHealthy(): Promise<boolean> {
     try {
       const health = await this.api.health();

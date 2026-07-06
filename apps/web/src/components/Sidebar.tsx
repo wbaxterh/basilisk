@@ -10,12 +10,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: "home" },
-  { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
-  { label: "Tokens", href: "/tokens", icon: "chart" },
+  { label: "Dashboard", href: "/dashboard", icon: "home" },
   { label: "Screener", href: "/screener", icon: "search" },
-  { label: "Wallets", href: "/wallets", icon: "wallet" },
+  { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
   { label: "Alerts", href: "/alerts", icon: "bell" },
+  { label: "Agents", href: "/agents", icon: "robot" },
 ];
 
 /** Simple SVG icons — keep it lightweight, no icon library needed. */
@@ -36,6 +35,8 @@ function NavIcon({ name }: { name: string }) {
       return <svg {...common}><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M16 12h.01" /></svg>;
     case "bell":
       return <svg {...common}><path d="M18 8A6 6 0 1 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>;
+    case "robot":
+      return <svg {...common}><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M12 5v4" /><circle cx="12" cy="4" r="1" /><path d="M9 14h.01" /><path d="M15 14h.01" /><path d="M2 13v3" /><path d="M22 13v3" /></svg>;
     default:
       return <svg {...common}><circle cx="12" cy="12" r="10" /></svg>;
   }
@@ -65,7 +66,16 @@ export default function Sidebar() {
         padding: "16px 20px",
         borderBottom: "1px solid var(--color-border)",
       }}>
-        <span style={{ fontSize: 24 }}>🐍</span>
+        <svg width="24" height="24" viewBox="0 0 32 32" style={{ display: "inline-block", filter: "drop-shadow(0 0 8px rgba(32,235,122,0.35))" }} aria-label="Basilisk">
+          <defs>
+            <linearGradient id="basiliskGradSidebar" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#20EB7A" />
+              <stop offset="100%" stopColor="#16A35A" />
+            </linearGradient>
+          </defs>
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#basiliskGradSidebar)" />
+          <path d="M16 7 L25 16 L16 25 L7 16 Z" fill="#001A0E" />
+        </svg>
         <span style={{
           fontSize: 22,
           fontWeight: 800,
@@ -79,7 +89,12 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav style={{ flex: 1, padding: "12px 8px" }}>
         {NAV_ITEMS.map((item) => {
-          const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href) ||
+                // Token detail pages live under /tokens but belong to the Screener flow.
+                (item.href === "/screener" && pathname.startsWith("/tokens"));
           return (
             <Link
               key={item.href}
@@ -91,7 +106,7 @@ export default function Sidebar() {
                 padding: "10px 12px",
                 borderRadius: "var(--radius-md)",
                 color: isActive ? "var(--color-brand)" : "var(--color-text-secondary)",
-                background: isActive ? "rgba(45, 182, 124, 0.1)" : "transparent",
+                background: isActive ? "var(--color-brand-soft)" : "transparent",
                 fontWeight: isActive ? 600 : 400,
                 fontSize: 14,
                 transition: "all 0.15s",

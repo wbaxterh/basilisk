@@ -40,3 +40,22 @@ screenshots/
 
 # Doc render scratch (PDFs ARE committed as deliverables; preview PNGs are not)
 docs/preview/
+
+# Whitepaper content is generated from docs/ via apps/web's prebuild
+# script. It IS committed so Vercel (which deploys only apps/web) has
+# the inlined markdown. Regenerate locally whenever docs/ changes.
+
+# Root-level screenshot scratch (session artifacts, not deliverables)
+/*.png
+
+# Local agent/session databases
+smithers.db*
+
+# npm monorepo — stray yarn lockfile
+yarn.lock
+
+# Separate contribution workspace, not part of this repo
+/midnight-contribution/
+
+# Rendered whitepaper PDFs (regenerable from docs/ sources)
+docs/output/*.pdf

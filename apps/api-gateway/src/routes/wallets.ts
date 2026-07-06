@@ -39,6 +39,38 @@ export async function walletRoutes(app: FastifyInstance, sql: Sql): Promise<void
     };
   });
 
+  /** GET /api/wallets/:stakeAddress/history — portfolio value over time. */
+  app.get("/api/wallets/:stakeAddress/history", async (req) => {
+    const { stakeAddress } = req.params as { stakeAddress: string };
+
+    const walletRows = await sql`
+      SELECT id FROM wallets WHERE stake_address = ${stakeAddress} LIMIT 1
+    `;
+
+    if (walletRows.length === 0) {
+      return { data: [], meta: { stakeAddress } };
+    }
+
+    const walletId = walletRows[0]!.id;
+
+    const rows = await sql`
+      SELECT
+        EXTRACT(EPOCH FROM timestamp)::int AS time,
+        total_value_ada
+      FROM portfolio_snapshots
+      WHERE wallet_id = ${walletId}
+      ORDER BY timestamp ASC
+    `;
+
+    return {
+      data: rows.map((r) => ({
+        time: r.time,
+        totalValueAda: r.total_value_ada,
+      })),
+      meta: { stakeAddress },
+    };
+  });
+
   /** POST /api/wallets — track a new wallet. */
   app.post("/api/wallets", async (req) => {
     const body = req.body as { stakeAddress: string; label?: string };
