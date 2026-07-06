@@ -1,0 +1,41 @@
+---
+slug: v0-2-dex-data-wallets-mcp
+title: "v0.2 — Real DEX data, wallet lookup, and a hosted MCP server for Cardano market data"
+date: 2026-07-06
+authors:
+  - name: Wes Huber
+    title: Founder
+    url: https://github.com/wbaxterh
+tags: [release]
+---
+
+TapTools shut down in June and left Cardano without a market data API. v0.2 is Basilisk stepping into that gap: a live screener and token pages backed by real DEX data, wallet lookup with $handle support, a free public REST API, and — to our knowledge — the first hosted MCP server for Cardano market data.
+
+{/* truncate */}
+
+## What's live today
+
+- **Token screener** — curated Cardano native tokens with live price, volume, liquidity, and txn counts, aggregated across DexScreener pairs. [Try it](https://basilisk-seven.vercel.app/screener).
+- **Token detail pages** — per-DEX pair breakdowns plus on-chain facts from Koios: supply, decimals, fingerprint, mint time, estimated holders.
+- **Wallet lookup** — `addr1...`, `stake1...`, or `$handle`: ADA balance, rewards, delegation, and holdings with USD values where priced.
+- **Free public REST API** — everything above at `https://basilisk-seven.vercel.app/api/v1`. No key, no signup. The TapTools API had no free tier ($9–199/mo); this one is just open. [API docs](/docs/api/overview) · [TapTools migration guide](/docs/api/taptools-migration).
+- **Hosted MCP server** — point Claude Code, Claude Desktop, or Cursor at `https://basilisk-seven.vercel.app/api/mcp` and query Cardano markets in natural language. Six tools: `get_screener`, `search_tokens`, `get_token`, `get_wallet`, `get_ada_price`, `get_chain_tip`. One-liner:
+
+  ```bash
+  claude mcp add --transport http basilisk https://basilisk-seven.vercel.app/api/mcp
+  ```
+
+  [MCP docs](/docs/agents/mcp).
+
+## Coverage, honestly
+
+DEX aggregates come from DexScreener, which covers **SundaeSwap + WingRiders** on Cardano — not Minswap, not the whole chain. Every API and MCP response carries a `coverage` field, and the app shows a coverage chip wherever DEX aggregates appear. On-chain and wallet data come from Koios; ADA market data from CoinGecko.
+
+## What's next
+
+- **x402 pay-per-query** — in development, targeting Masumi Network's community x402-cardano facilitator (testnet PoC stage). [The honest state of x402 on Cardano](/docs/agents/x402).
+- **Live trades feed** — in development.
+- **OHLCV candles via our own chain ingestion** — the Kupmios plan from ADR-001 remains the Phase-2 path.
+- **Agent-to-agent settlement** — research; the replayable [Scout × Trader demo](/docs/agents/a2a) is how we're exploring it without real funds.
+
+If you were building on TapTools, the [migration guide](/docs/api/taptools-migration) maps their endpoints to ours and is blunt about the gaps. Tell us what you need first: [GitHub issues](https://github.com/wbaxterh/basilisk/issues).

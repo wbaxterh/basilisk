@@ -5,43 +5,47 @@ sidebar_position: 1
 
 # For Agents
 
-Basilisk is the first Cardano analytics platform built for autonomous AI agents. Two rails:
+Basilisk is built agent-native from day one: the same Cardano market data humans see in the app is exposed to AI agents through open, keyless rails. Here is exactly what is real today and what is still being built — no vaporware.
 
-| Rail | Use it for |
+| Status | Capability |
 | --- | --- |
-| **x402 micropayments** | Pay-per-request access to Basilisk APIs in native ADA. No accounts, no keys. |
-| **MCP server** | Plug Basilisk into any LLM (Claude, GPT, open-source) as a structured tool surface. |
+| **Live today** | Hosted **MCP server** at `https://basilisk-seven.vercel.app/api/mcp` — screener, token detail, search, wallets, ADA price, chain tip as structured tools |
+| **Live today** | Free public **REST API** (`/api/v1`) — no key, no signup |
+| **In development** | **x402 pay-per-query** — HTTP 402 micropayments via Masumi Network's community x402-cardano facilitator (testnet PoC stage) |
+| **In development** | **Live trades feed** — per-swap data for tokens and wallets |
+| **Research** | **Agent-to-agent settlement** — the Scout×Trader replayable demo (Request → Negotiate → Transact → Evaluate) |
 
-Together they let an agent (a) query market data, (b) analyze portfolios, and (c) reason and execute — without a human in the loop and without a SaaS contract.
+## Start here: connect an agent in one line
 
-## Why this exists
+```bash
+claude mcp add --transport http basilisk https://basilisk-seven.vercel.app/api/mcp
+```
 
-The legacy crypto-data API model assumes a developer logs into a dashboard, signs a ToS, and pastes a key into a config file. That model breaks for autonomous agents:
+That's it. No account, no key. Ask Claude "what's moving on Cardano today?" and it calls `get_screener` against live data. Full setup for Claude Desktop and Cursor is on the [MCP page](./mcp.md).
+
+## Why agent-native matters
+
+The legacy crypto-data API model assumes a developer logs into a dashboard, signs a ToS, and pastes a key into a config file. That breaks for autonomous agents:
 
 - Agents can't fill in a credit-card form.
 - API keys are bearer tokens — sharing them between agents is unsafe.
-- Per-seat pricing doesn't match per-request usage.
+- Per-seat subscription pricing doesn't match per-request usage.
 
-x402 is a 30-year-old HTTP status code (`402 Payment Required`) revived as a settlement protocol. An agent sends a request, the server replies with a price + payment receiver, the agent signs a tiny Cardano transaction, and the server unlocks the response. No accounts, no keys, no shared state.
+Basilisk's answer, in order of shipping:
 
-## Quick example
+1. **Keyless data now.** The MCP server and `/api/v1` are open, so agents work today with zero onboarding.
+2. **Pay-per-query next.** [x402](./x402.md) — the emerging open standard for agent payments, governed by the x402 Foundation under the Linux Foundation — lets an agent pay per request instead of per seat. On Cardano this depends on community facilitator infrastructure that is still at the testnet proof-of-concept stage, so we label it honestly: in development.
+3. **Agent-to-agent economics later.** [A2A](./a2a.md) explores agents buying derived signals from each other; today that exists as a replayable demo, not a production rail.
 
-```typescript
-import { BasiliskAgent } from '@basilisk/agent';
+## Coverage note
 
-const agent = new BasiliskAgent({ wallet: myCardanoWallet });
+:::caution
+DEX aggregates (prices, volume, liquidity) come from DexScreener, which covers **SundaeSwap + WingRiders only** on Cardano. Every response carries a `coverage` field. If your agent reports these numbers, it should repeat that caveat — never present them as total Cardano volume or liquidity. On-chain and wallet data come from Koios; ADA market data from CoinGecko.
+:::
 
-const price = await agent.x402.get('/v1/prices/MIN');
-// → { price: 0.052, change24h: 4.1, volume24h: 120000 }
-// Internally signed a 1000-lovelace (0.001 ADA) tx and forwarded it.
-```
+## Where to go next
 
-## What's next
-
-- [x402 Protocol](./x402) — request/response flow, pricing schedule, settlement
-- [MCP Server](./mcp) — connecting Claude / any LLM
-- [Agent-to-Agent (A2A)](./a2a) — discovery, negotiation, multi-agent strategies
-
-## Alpha status
-
-Agent rails are in **closed alpha** with design partners through Q4 2026. To get an invite, join the waitlist on [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) and mention "agents" in the optional notes field.
+- [MCP Server](./mcp.md) — connect Claude Code, Claude Desktop, or Cursor; full tool reference. **Live.**
+- [x402 Protocol](./x402.md) — pay-per-query plans and the honest state of x402 on Cardano. **In development.**
+- [Agent-to-Agent (A2A)](./a2a.md) — the Scout×Trader demo. **Research.**
+- [REST API](../api/overview.md) — plain HTTP, if you'd rather skip MCP.
