@@ -1,111 +1,273 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  fetchCardanoTokens,
-  fmtUsd,
-  fmtPct,
-  type CntToken,
-} from "../../../lib/public-data";
+import { useRouter } from "next/navigation";
+import type { ScreenerToken, ScreenerResponse, SearchResponse } from "../../../lib/dex-data";
 
-type Tab = "top" | "gainers" | "losers" | "volume";
-type SortKey = "rank" | "price" | "change24h" | "marketCap" | "volume24h";
+type Tab = "top" | "gainers" | "losers" | "volume" | "new";
+type SortKey =
+  | "price"
+  | "change1h"
+  | "change6h"
+  | "change24h"
+  | "volume24h"
+  | "liquidity"
+  | "txns"
+  | "mcap"
+  | "age";
+type Status = "loading" | "ok" | "delayed";
+
+interface RowData {
+  token: ScreenerToken;
+  viaSearch: boolean;
+}
 
 const TABS: { key: Tab; label: string; help: string }[] = [
-  { key: "top", label: "Top", help: "By market cap" },
+  { key: "top", label: "Top", help: "By DEX liquidity" },
   { key: "gainers", label: "Gainers", help: "Best 24H performers" },
   { key: "losers", label: "Losers", help: "Worst 24H performers" },
   { key: "volume", label: "Volume", help: "By 24H trading volume" },
+  { key: "new", label: "New Pairs", help: "Most recently created pairs" },
 ];
 
+const TAB_DEFAULT: Record<Tab, { key: SortKey; desc: boolean }> = {
+  top: { key: "liquidity", desc: true },
+  gainers: { key: "change24h", desc: true },
+  losers: { key: "change24h", desc: false },
+  volume: { key: "volume24h", desc: true },
+  new: { key: "age", desc: true },
+};
+
+const DEX_LABELS: Record<string, string> = {
+  sundaeswap: "Sundae",
+  wingriders: "WingRiders",
+};
+
+/* ─── Formatters ─────────────────────────────────────────── */
+
+function fmtPrice(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (v <= 0) return "$0.00";
+  if (v >= 1000) return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1) return "$" + v.toFixed(2);
+  if (v >= 0.01) return "$" + v.toFixed(4);
+  const decimals = Math.min(11, 3 - Math.floor(Math.log10(v)));
+  return "$" + v.toFixed(decimals);
+}
+
+function fmtCompact(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return "$" + (v / 1e3).toFixed(1) + "K";
+  return "$" + v.toFixed(0);
+}
+
+function fmtPct(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+}
+
+function fmtAge(ms: number | null): string {
+  if (!ms) return "—";
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 365) return `${d}d`;
+  return `${(d / 365).toFixed(1)}y`;
+}
+
+/* ─── Sorting ────────────────────────────────────────────── */
+
+function sortVal(t: ScreenerToken, key: SortKey): number | null {
+  switch (key) {
+    case "price": return t.priceUsd;
+    case "change1h": return t.change1h;
+    case "change6h": return t.change6h;
+    case "change24h": return t.change24h;
+    case "volume24h": return t.volume24h;
+    case "liquidity": return t.liquidityUsd;
+    case "txns": return t.txns24h;
+    case "mcap": return t.marketCap;
+    case "age": return t.pairCreatedAt;
+  }
+}
+
+function sortRows(list: RowData[], key: SortKey, desc: boolean): RowData[] {
+  return [...list].sort((a, b) => {
+    const av = sortVal(a.token, key);
+    const bv = sortVal(b.token, key);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; // nulls always last
+    if (bv == null) return -1;
+    return desc ? bv - av : av - bv;
+  });
+}
+
+const matches = (t: ScreenerToken, q: string) =>
+  t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q);
+
+/* ─── Page ───────────────────────────────────────────────── */
+
 export default function ScreenerPage() {
+  const router = useRouter();
+  const [tokens, setTokens] = useState<ScreenerToken[]>([]);
+  const [status, setStatus] = useState<Status>("loading");
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("top");
   const [search, setSearch] = useState("");
-  const [tokens, setTokens] = useState<CntToken[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDesc, setSortDesc] = useState(true);
+  const [remote, setRemote] = useState<{ query: string; tokens: ScreenerToken[]; loading: boolean } | null>(null);
 
+  // Load + 60 s refresh + 10 s retry on failure.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    fetchCardanoTokens(100)
-      .then((data) => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const load = async () => {
+      try {
+        const res = await fetch("/api/v1/tokens");
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data: ScreenerResponse = await res.json();
         if (cancelled) return;
-        setTokens(data);
-        setError(data.length === 0);
-        setLoading(false);
-      })
-      .catch(() => {
+        setTokens(data.tokens);
+        setUpdatedAt(data.updatedAt);
+        setStatus("ok");
+      } catch {
         if (cancelled) return;
-        setError(true);
-        setLoading(false);
-      });
-    return () => { cancelled = true; };
+        setStatus("delayed");
+        retryTimer = setTimeout(load, 10_000);
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
-  const filtered = useMemo(() => {
-    let list = [...tokens];
-    if (activeTab === "gainers") {
-      list = list.filter((t) => (t.change24h ?? 0) > 0);
-    } else if (activeTab === "losers") {
-      list = list.filter((t) => (t.change24h ?? 0) < 0);
+  // Remote search when the local registry has no match. Keyed on the query +
+  // a boolean, NOT the tokens array — the 60 s refresh replaces the array
+  // identity and must not wipe/refetch an already-resolved search.
+  const q = search.trim().toLowerCase();
+  const hasLocalMatch = useMemo(() => tokens.some((t) => matches(t, q)), [tokens, q]);
+  useEffect(() => {
+    if (q.length < 2 || hasLocalMatch) {
+      setRemote(null);
+      return;
     }
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter((t) => t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
-    }
-    // Apply tab-default sort, then allow column overrides
-    if (activeTab === "gainers")  list.sort((a, b) => (b.change24h ?? 0) - (a.change24h ?? 0));
-    else if (activeTab === "losers") list.sort((a, b) => (a.change24h ?? 0) - (b.change24h ?? 0));
-    else if (activeTab === "volume") list.sort((a, b) => b.volume24h - a.volume24h);
-    else list.sort((a, b) => b.marketCap - a.marketCap);
+    setRemote((cur) => (cur && cur.query === q && !cur.loading ? cur : { query: q, tokens: [], loading: true }));
+    const timer = setTimeout(() => {
+      fetch(`/api/v1/search?q=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("search failed"))))
+        .then((data: SearchResponse) =>
+          setRemote((cur) => (cur && cur.query === q ? { query: q, tokens: data.tokens, loading: false } : cur))
+        )
+        .catch(() =>
+          setRemote((cur) => (cur && cur.query === q ? { query: q, tokens: [], loading: false } : cur))
+        );
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [q, hasLocalMatch]);
 
-    if (sortKey !== "rank") {
-      list.sort((a, b) => {
-        let aVal = 0, bVal = 0;
-        switch (sortKey) {
-          case "price":     aVal = a.price;       bVal = b.price;       break;
-          case "change24h": aVal = a.change24h ?? 0; bVal = b.change24h ?? 0; break;
-          case "marketCap": aVal = a.marketCap;   bVal = b.marketCap;   break;
-          case "volume24h": aVal = a.volume24h;   bVal = b.volume24h;   break;
-        }
-        return sortDesc ? bVal - aVal : aVal - bVal;
-      });
+  const searching = search.trim().length > 0;
+  const showAge = activeTab === "new" && !searching;
+  const colCount = showAge ? 11 : 10;
+
+  const rows = useMemo<RowData[]>(() => {
+    const q = search.trim().toLowerCase();
+    let list: RowData[];
+    if (q) {
+      const local = tokens.filter((t) => matches(t, q)).map((t) => ({ token: t, viaSearch: false }));
+      const seen = new Set(local.map((r) => r.token.address));
+      const extra =
+        remote && remote.query === q
+          ? remote.tokens.filter((t) => !seen.has(t.address)).map((t) => ({ token: t, viaSearch: true }))
+          : [];
+      list = [...local, ...extra];
+      return sortRows(list, sortKey ?? "liquidity", sortKey ? sortDesc : true);
     }
-    return list;
-  }, [tokens, activeTab, search, sortKey, sortDesc]);
+    let base = [...tokens];
+    if (activeTab === "gainers") base = base.filter((t) => (t.change24h ?? 0) > 0);
+    else if (activeTab === "losers") base = base.filter((t) => (t.change24h ?? 0) < 0);
+    else if (activeTab === "new") base = base.filter((t) => t.pairCreatedAt != null);
+    list = base.map((t) => ({ token: t, viaSearch: false }));
+    const def = TAB_DEFAULT[activeTab];
+    return sortRows(list, sortKey ?? def.key, sortKey ? sortDesc : def.desc);
+  }, [tokens, remote, search, activeTab, sortKey, sortDesc]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDesc(!sortDesc);
-    else { setSortKey(key); setSortDesc(true); }
+    else {
+      setSortKey(key);
+      setSortDesc(true);
+    }
   };
+
+  const remoteSearching = searching && remote != null && remote.loading;
 
   return (
     <div>
-      <header style={{ marginBottom: 20 }}>
+      <header style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6, marginBottom: 4 }}>
-          Market Screener
+          Screener
         </h1>
         <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-          Cardano native tokens, live · powered by{" "}
-          <a href="https://www.coingecko.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-brand)" }}>
-            CoinGecko
-          </a>
+          Live Cardano DEX pairs, aggregated per token · click any row for full detail
         </p>
       </header>
 
+      {/* Coverage / honesty chips */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        <Chip>
+          <DatabaseIcon />
+          DEX data: SundaeSwap + WingRiders via DexScreener
+        </Chip>
+        <Chip>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-positive)", flexShrink: 0 }} />
+          Prices live
+        </Chip>
+        <Chip>
+          <UnlockIcon />
+          No paywall — everything on this screen is free
+        </Chip>
+        <a
+          href="/api/v1/tokens"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Same data, as JSON — every human view has an API view"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+            padding: "4px 10px", borderRadius: 999,
+            color: "var(--color-brand)", background: "var(--color-brand-soft)",
+            border: "1px solid rgba(32, 235, 122, 0.25)",
+            fontFamily: "var(--font-mono)", textDecoration: "none",
+          }}
+        >
+          <CodeIcon />
+          API · /api/v1/tokens
+        </a>
+      </div>
+
       {/* Controls */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--color-bg-elevated)", borderRadius: 6, border: "1px solid var(--color-border)" }}>
           {TABS.map((t) => {
             const active = activeTab === t.key;
             return (
               <button
                 key={t.key}
-                onClick={() => { setActiveTab(t.key); setSortKey("rank"); }}
+                onClick={() => { setActiveTab(t.key); setSortKey(null); setSortDesc(true); }}
                 title={t.help}
                 style={{
                   padding: "6px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
@@ -113,6 +275,7 @@ export default function ScreenerPage() {
                   color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
                   transition: "color 120ms, background 120ms",
                   textTransform: "uppercase",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {t.label}
@@ -120,136 +283,382 @@ export default function ScreenerPage() {
             );
           })}
         </div>
-        <input
-          type="text"
-          placeholder="Search symbol or name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: 1, minWidth: 200, maxWidth: 320,
-            padding: "8px 12px", background: "var(--color-bg-elevated)",
-            border: "1px solid var(--color-border)", borderRadius: 6,
-            color: "var(--color-text-primary)", fontSize: 13, outline: "none",
-          }}
-        />
+        <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 340 }}>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)", display: "flex" }}>
+            <SearchIcon />
+          </span>
+          <input
+            type="text"
+            placeholder="Search symbol or name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px 8px 32px", background: "var(--color-bg-elevated)",
+              border: "1px solid var(--color-border)", borderRadius: 6,
+              color: "var(--color-text-primary)", fontSize: 13, outline: "none",
+            }}
+          />
+        </div>
       </div>
+
+      {/* Delayed banner (stale data still on screen) */}
+      {status === "delayed" && tokens.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", marginBottom: 10,
+          background: "rgba(255, 193, 7, 0.08)", border: "1px solid rgba(255, 193, 7, 0.25)",
+          borderRadius: 6, color: "var(--color-warning)", fontSize: 12, fontWeight: 600,
+        }}>
+          <WarningIcon />
+          data delayed — retrying
+        </div>
+      )}
 
       {/* Table */}
       <div style={{
-        background: "var(--color-bg-elevated)", borderRadius: "var(--radius-md)",
+        background: "var(--color-bg-elevated)", borderRadius: "var(--radius-lg)",
         border: "1px solid var(--color-border)", overflow: "hidden",
       }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
             <thead>
               <tr style={{ background: "var(--color-bg-secondary)", borderBottom: "1px solid var(--color-border)" }}>
-                <Th label="#" k="rank" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} width={50} align="left" />
-                <Th label="Token" k="rank" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="left" />
-                <Th label="Price" k="price" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
-                <Th label="24H %" k="change24h" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
-                <Th label="Market Cap" k="marketCap" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
-                <Th label="24H Vol" k="volume24h" sortKey={sortKey} sortDesc={sortDesc} onClick={toggleSort} align="right" />
+                <th style={{ ...thStyle, textAlign: "left", width: 44, minWidth: 44, position: "sticky", left: 0, zIndex: 3, background: "var(--color-bg-secondary)" }}>#</th>
+                <th style={{ ...thStyle, textAlign: "left", minWidth: 200, position: "sticky", left: 44, zIndex: 3, background: "var(--color-bg-secondary)" }}>Token</th>
+                {showAge && <SortTh label="Age" k="age" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />}
+                <SortTh label="Price" k="price" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="1H %" k="change1h" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="6H %" k="change6h" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="24H %" k="change24h" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="24H Volume" k="volume24h" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="Liquidity" k="liquidity" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="24H Txns" k="txns" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
+                <SortTh label="Mcap" k="mcap" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : error ? (
+              {status === "loading" ? (
+                Array.from({ length: 12 }).map((_, i) => <SkeletonRow key={i} cols={colCount} />)
+              ) : status === "delayed" && tokens.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
-                    Could not load tokens. Try again later.
+                  <td colSpan={colCount} style={{ padding: 48, textAlign: "center", color: "var(--color-warning)", fontSize: 13, fontWeight: 600 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <WarningIcon />
+                      data delayed — retrying
+                    </span>
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
-                    No results.
+                  <td colSpan={colCount} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)", fontSize: 13 }}>
+                    {remoteSearching ? "searching DEX pairs…" : searching ? "No matches on SundaeSwap or WingRiders." : "No tokens in this view."}
                   </td>
                 </tr>
               ) : (
-                filtered.map((t, i) => <Row key={t.id} token={t} rank={i + 1} />)
+                rows.map((row, i) => (
+                  <TokenRow
+                    key={row.token.address}
+                    row={row}
+                    rank={i + 1}
+                    showAge={showAge}
+                    onOpen={() => router.push(`/tokens/${row.token.address}`)}
+                  />
+                ))
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {!loading && !error && (
-        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 10, letterSpacing: 0.3 }}>
-          {filtered.length} of {tokens.length} tokens · click a row for token detail
+      {status !== "loading" && (
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 10, letterSpacing: 0.3, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <span>{rows.length} tokens</span>
+          <span>·</span>
+          <span>DEX data: SundaeSwap + WingRiders via DexScreener</span>
+          {updatedAt && (
+            <>
+              <span>·</span>
+              <span style={{ fontFamily: "var(--font-mono)" }}>updated {new Date(updatedAt).toLocaleTimeString()}</span>
+            </>
+          )}
+          <span>·</span>
+          <span>refreshes every 60s</span>
         </div>
       )}
     </div>
   );
 }
 
-function Th({ label, k, sortKey, sortDesc, onClick, align, width }: {
-  label: string; k: SortKey; sortKey: SortKey; sortDesc: boolean;
-  onClick: (k: SortKey) => void; align: "left" | "right"; width?: number;
+/* ─── Table pieces ───────────────────────────────────────── */
+
+const thStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  color: "var(--color-text-muted)",
+  whiteSpace: "nowrap",
+};
+
+function SortTh({ label, k, sortKey, sortDesc, onSort }: {
+  label: string; k: SortKey; sortKey: SortKey | null; sortDesc: boolean;
+  onSort: (k: SortKey) => void;
 }) {
   const active = sortKey === k;
   return (
     <th
-      onClick={() => onClick(k)}
+      onClick={() => onSort(k)}
       style={{
-        padding: "10px 14px", textAlign: align,
-        fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase",
+        ...thStyle,
+        textAlign: "right",
+        cursor: "pointer",
+        userSelect: "none",
         color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
-        cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
-        width: width ? `${width}px` : undefined,
       }}
     >
       {label}
-      {active && <span style={{ marginLeft: 4 }}>{sortDesc ? "↓" : "↑"}</span>}
+      <span style={{ marginLeft: 4, fontSize: 8, opacity: active ? 1 : 0 }}>
+        {active && !sortDesc ? "▲" : "▼"}
+      </span>
     </th>
   );
 }
 
-function Row({ token, rank }: { token: CntToken; rank: number }) {
-  const pct = token.change24h ?? 0;
+function TokenRow({ row, rank, showAge, onOpen }: {
+  row: RowData; rank: number; showAge: boolean; onOpen: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const t = row.token;
+  const stickyBg = hovered ? "var(--color-bg-hover)" : "var(--color-bg-elevated)";
+
   return (
-    <tr style={{ borderBottom: "1px solid var(--color-border-soft)" }}>
-      <Td><span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>{rank}</span></Td>
-      <Td>
-        <Link href={`/tokens/${token.id}`} style={{ display: "flex", flexDirection: "column", color: "inherit" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{token.symbol}</span>
-          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>{token.name}</span>
-        </Link>
-      </Td>
-      <Td align="right" mono>{fmtUsd(token.price, token.price < 1 ? 4 : 2)}</Td>
-      <Td align="right">
-        <span style={{ fontSize: 13, fontWeight: 600, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
-          {fmtPct(pct)}
-        </span>
-      </Td>
-      <Td align="right" mono>{fmtUsd(token.marketCap)}</Td>
-      <Td align="right" mono>{fmtUsd(token.volume24h)}</Td>
+    <tr
+      onClick={onOpen}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
+      tabIndex={0}
+      role="link"
+      style={{
+        borderBottom: "1px solid var(--color-border-soft)",
+        cursor: "pointer",
+        background: hovered ? "var(--color-bg-hover)" : "transparent",
+        transition: "background 100ms",
+      }}
+    >
+      <td style={{ ...tdStyle, width: 44, minWidth: 44, position: "sticky", left: 0, zIndex: 1, background: stickyBg }}>
+        <span style={{ color: "var(--color-text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>{rank}</span>
+      </td>
+      <td style={{ ...tdStyle, minWidth: 200, position: "sticky", left: 44, zIndex: 1, background: stickyBg }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <TokenLogo src={t.imageUrl} symbol={t.symbol} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)" }}>{t.symbol}</span>
+              {t.dexIds.map((d) => (
+                <span
+                  key={d}
+                  style={{
+                    fontSize: 8.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
+                    padding: "1px 5px", borderRadius: 4,
+                    border: "1px solid var(--color-border)", color: "var(--color-text-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {DEX_LABELS[d] ?? d}
+                </span>
+              ))}
+              {row.viaSearch && (
+                <span style={{
+                  fontSize: 8.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
+                  padding: "1px 5px", borderRadius: 4,
+                  border: "1px solid rgba(112, 236, 253, 0.25)", background: "rgba(112, 236, 253, 0.08)",
+                  color: "var(--color-info)", whiteSpace: "nowrap",
+                }}>
+                  via search
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 170 }}>
+              {t.name}
+            </div>
+          </div>
+        </div>
+      </td>
+      {showAge && (
+        <td style={{ ...tdStyle, textAlign: "right" }}>
+          <span style={{ fontSize: 12.5, fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
+            {fmtAge(t.pairCreatedAt)}
+          </span>
+        </td>
+      )}
+      <NumTd>{fmtPrice(t.priceUsd)}</NumTd>
+      <PctTd v={t.change1h} />
+      <PctTd v={t.change6h} />
+      <PctTd v={t.change24h} />
+      <NumTd>{fmtCompact(t.volume24h)}</NumTd>
+      <NumTd>{fmtCompact(t.liquidityUsd)}</NumTd>
+      <td style={{ ...tdStyle, textAlign: "right" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
+            <span style={{ color: "var(--color-positive)" }}>{t.buys24h.toLocaleString("en-US")}</span>
+            <span style={{ color: "var(--color-text-muted)" }}> / </span>
+            <span style={{ color: "var(--color-negative)" }}>{t.sells24h.toLocaleString("en-US")}</span>
+          </span>
+          <PressureBar buys={t.buys24h} sells={t.sells24h} />
+        </div>
+      </td>
+      <NumTd>{fmtCompact(t.marketCap)}</NumTd>
     </tr>
   );
 }
 
-function Td({ children, align = "left", mono }: {
-  children: React.ReactNode; align?: "left" | "right"; mono?: boolean;
-}) {
+const tdStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  fontSize: 13,
+  whiteSpace: "nowrap",
+  verticalAlign: "middle",
+};
+
+function NumTd({ children }: { children: React.ReactNode }) {
   return (
-    <td style={{
-      padding: "10px 14px", textAlign: align, fontSize: 13,
-      fontFamily: mono ? "var(--font-mono)" : "inherit",
-      whiteSpace: "nowrap",
-    }}>
-      {children}
+    <td style={{ ...tdStyle, textAlign: "right" }}>
+      <span style={{ fontSize: 12.5, fontFamily: "var(--font-mono)" }}>{children}</span>
     </td>
   );
 }
 
-function SkeletonRow() {
+function PctTd({ v }: { v: number | null }) {
+  const color =
+    v == null || v === 0 ? "var(--color-text-muted)"
+    : v > 0 ? "var(--color-positive)"
+    : "var(--color-negative)";
+  return (
+    <td style={{ ...tdStyle, textAlign: "right" }}>
+      <span style={{ fontSize: 12.5, fontWeight: 600, fontFamily: "var(--font-mono)", color }}>{fmtPct(v)}</span>
+    </td>
+  );
+}
+
+/** Buy/sell pressure micro-bar: green vs red split by 24H buys/sells ratio. */
+function PressureBar({ buys, sells }: { buys: number; sells: number }) {
+  const total = buys + sells;
+  return (
+    <div style={{ width: 40, height: 3, borderRadius: 2, overflow: "hidden", display: "flex", background: "var(--color-border)" }}>
+      {total > 0 && (
+        <>
+          <div style={{ width: `${(buys / total) * 100}%`, background: "var(--color-positive)" }} />
+          <div style={{ flex: 1, background: "var(--color-negative)" }} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function TokenLogo({ src, symbol }: { src: string | null; symbol: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span style={{
+        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+        background: "var(--color-bg-hover)", border: "1px solid var(--color-border)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontSize: 10, fontWeight: 700, color: "var(--color-text-secondary)",
+      }}>
+        {symbol.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      width={22}
+      height={22}
+      onError={() => setFailed(true)}
+      style={{ borderRadius: "50%", flexShrink: 0, background: "var(--color-bg-hover)", objectFit: "cover" }}
+    />
+  );
+}
+
+function SkeletonRow({ cols }: { cols: number }) {
   return (
     <tr style={{ borderBottom: "1px solid var(--color-border-soft)" }}>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <td key={i} style={{ padding: "12px 14px" }}>
-          <span style={{ display: "block", height: 10, width: "60%", background: "var(--color-bg-secondary)", borderRadius: 3 }} />
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} style={{ padding: "13px 12px" }}>
+          <span style={{
+            display: "block", height: 10, borderRadius: 3,
+            width: i === 1 ? "80%" : "60%",
+            marginLeft: i > 1 ? "auto" : undefined,
+            background: "var(--color-bg-secondary)",
+          }} />
         </td>
       ))}
     </tr>
+  );
+}
+
+/* ─── Chips & icons ──────────────────────────────────────── */
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      fontSize: 11, color: "var(--color-text-secondary)",
+      padding: "4px 10px", borderRadius: 999,
+      background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)",
+      whiteSpace: "nowrap",
+    }}>
+      {children}
+    </span>
+  );
+}
+
+function DatabaseIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  );
+}
+
+function UnlockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </svg>
+  );
+}
+
+function CodeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
   );
 }

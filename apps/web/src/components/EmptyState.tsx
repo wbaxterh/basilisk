@@ -1,11 +1,32 @@
+import type { ReactNode } from "react";
+
 interface EmptyStateProps {
-  icon: string;
   title: string;
   description: string;
   action?: string;
+  /** Optional stroke-SVG icon node; falls back to a default wallet glyph. */
+  svg?: ReactNode;
 }
 
-export default function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+const DEFAULT_SVG = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="var(--color-brand)"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M20 7H5a2 2 0 0 1-2-2 2 2 0 0 1 2-2h13v4" />
+    <path d="M3 5v13a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1" />
+    <path d="M16 13.5h.01" />
+  </svg>
+);
+
+export default function EmptyState({ title, description, action, svg }: EmptyStateProps) {
   return (
     <div style={{
       background: "var(--color-bg-elevated)",
@@ -19,17 +40,16 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
       gap: 12,
     }}>
       <div style={{
-        width: 56,
-        height: 56,
+        width: 48,
+        height: 48,
         borderRadius: "50%",
-        background: "rgba(45, 182, 124, 0.1)",
+        background: "var(--color-brand-soft)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: 24,
         marginBottom: 4,
       }}>
-        {icon}
+        {svg ?? DEFAULT_SVG}
       </div>
       <h3 style={{
         fontSize: 16,
@@ -56,7 +76,7 @@ export default function EmptyState({ icon, title, description, action }: EmptySt
           padding: "10px 20px",
           borderRadius: "var(--radius-md)",
           background: "var(--color-brand)",
-          color: "#fff",
+          color: "#001A0E",
           cursor: "pointer",
           border: "none",
           transition: "opacity 0.15s",

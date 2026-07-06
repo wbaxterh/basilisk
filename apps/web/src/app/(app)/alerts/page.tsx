@@ -1,162 +1,124 @@
-"use client";
+import Link from "next/link";
 
-import { useState, useEffect, useCallback } from "react";
-import EmptyState from "../../../components/EmptyState";
-import { fetchAlerts, createAlert, deleteAlert, type AlertRuleData } from "../../../lib/api";
-
-const RULE_TYPES = [
-  { value: "price_above", label: "Price Above" },
-  { value: "price_below", label: "Price Below" },
-  { value: "pct_change", label: "% Change (24h)" },
+const PLANNED = [
+  { label: "Price above / below", desc: "Threshold crossings on any indexed token" },
+  { label: "24h % change", desc: "Momentum triggers on movers" },
+  { label: "Wallet balance changes", desc: "Watch any addr1 / stake1 / $handle" },
 ];
 
-// Placeholder user ID until auth is built.
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+const BellIcon = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="var(--color-brand)"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+  </svg>
+);
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<AlertRuleData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [asset, setAsset] = useState("");
-  const [type, setType] = useState("price_above");
-  const [threshold, setThreshold] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const loadAlerts = useCallback(async () => {
-    try {
-      const data = await fetchAlerts();
-      setAlerts(data);
-    } catch {
-      // API offline
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadAlerts(); }, [loadAlerts]);
-
-  const handleCreate = async () => {
-    if (!asset.trim() || !threshold.trim()) return;
-    setSubmitting(true);
-    try {
-      const condition = type === "pct_change"
-        ? { pctThreshold: parseFloat(threshold) }
-        : { threshold };
-      await createAlert({ userId: DEMO_USER_ID, type, asset: asset.trim(), condition });
-      setAsset("");
-      setThreshold("");
-      setShowForm(false);
-      await loadAlerts();
-    } catch {
-      // Handle error
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteAlert(id);
-      setAlerts((prev) => prev.filter((a) => a.id !== id));
-    } catch {
-      // Handle error
-    }
-  };
-
-  const inputStyle = {
-    padding: "10px 14px", borderRadius: "var(--radius-md)",
-    border: "1px solid var(--color-border)", background: "var(--color-bg-elevated)",
-    color: "var(--color-text-primary)", fontSize: 14, outline: "none", width: "100%" as const,
-  };
-
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Alerts</h1>
-          <p style={{ color: "var(--color-text-secondary)", fontSize: 14, margin: 0 }}>
-            Price alerts, whale moves, and balance change notifications.
-          </p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)} style={{
-          padding: "10px 20px", borderRadius: "var(--radius-md)", background: "var(--color-brand)",
-          color: "#fff", fontWeight: 600, fontSize: 14,
-        }}>
-          {showForm ? "Cancel" : "+ New Alert"}
-        </button>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Alerts</h1>
+        <p style={{ color: "var(--color-text-secondary)", fontSize: 14, margin: 0 }}>
+          Price alerts, whale moves, and balance change notifications.
+        </p>
       </div>
 
-      {/* Create alert form */}
-      {showForm && (
+      {/* Coming-with-accounts gate */}
+      <div style={{
+        background: "var(--color-bg-elevated)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-lg)",
+        padding: "56px 40px",
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 12,
+      }}>
         <div style={{
-          background: "var(--color-bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)",
-          padding: 20, marginBottom: 16, display: "flex", flexDirection: "column", gap: 12,
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          background: "var(--color-brand-soft)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 4,
         }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--color-text-muted)", display: "block", marginBottom: 4 }}>Asset ID</label>
-              <input type="text" placeholder="policyId + assetName" value={asset} onChange={(e) => setAsset(e.target.value)} style={{ ...inputStyle, fontFamily: "var(--font-mono)", fontSize: 13 }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--color-text-muted)", display: "block", marginBottom: 4 }}>Rule Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                {RULE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--color-text-muted)", display: "block", marginBottom: 4 }}>
-                {type === "pct_change" ? "% Threshold" : "Price Threshold (ADA)"}
-              </label>
-              <input type="number" step="any" placeholder={type === "pct_change" ? "e.g. 10" : "e.g. 0.05"} value={threshold} onChange={(e) => setThreshold(e.target.value)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
-            </div>
-          </div>
-          <button onClick={handleCreate} disabled={submitting || !asset.trim() || !threshold.trim()} style={{
-            alignSelf: "flex-end", padding: "10px 24px", borderRadius: "var(--radius-md)",
-            background: "var(--color-brand)", color: "#fff", fontWeight: 600, fontSize: 14,
-            opacity: submitting ? 0.7 : 1,
-          }}>
-            {submitting ? "Creating..." : "Create Alert"}
-          </button>
+          {BellIcon}
         </div>
-      )}
+        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+          Alerts are coming with accounts
+        </h2>
+        <p style={{
+          fontSize: 14,
+          color: "var(--color-text-secondary)",
+          maxWidth: 440,
+          margin: 0,
+          lineHeight: 1.6,
+        }}>
+          Alert rules need somewhere to live and somewhere to notify you.
+          Accounts are in development — join the waitlist and you&apos;ll be
+          first in when they ship.
+        </p>
+        <Link
+          href="/#waitlist"
+          style={{
+            marginTop: 10,
+            display: "inline-block",
+            padding: "10px 22px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--color-brand)",
+            color: "#001A0E",
+            fontWeight: 600,
+            fontSize: 14,
+          }}
+        >
+          Join the waitlist
+        </Link>
 
-      {/* Alerts list */}
-      {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>Loading alerts...</div>
-      ) : alerts.length === 0 && !showForm ? (
-        <EmptyState icon="🔔" title="No alerts configured" description="Create price alerts, whale movement notifications, or balance change triggers. Get notified when conditions are met." action="Create Alert" />
-      ) : alerts.length > 0 ? (
-        <div style={{ background: "var(--color-bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)", overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--color-border)", fontSize: 12, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase" as const, letterSpacing: 0.5 }}>
-            <span>Asset</span>
-            <span>Type</span>
-            <span>Condition</span>
-            <span></span>
-          </div>
-          {alerts.map((a) => (
-            <div key={a.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px", gap: 16, padding: "12px 20px", borderBottom: "1px solid var(--color-border)", fontSize: 13, alignItems: "center" }}>
-              <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-primary)" }}>
-                {a.asset ? (a.asset.length > 24 ? `${a.asset.slice(0, 10)}...${a.asset.slice(-6)}` : a.asset) : "—"}
-              </span>
-              <span style={{ color: "var(--color-text-secondary)" }}>
-                {RULE_TYPES.find((t) => t.value === a.type)?.label || a.type}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
-                {formatCondition(a.type, a.condition)}
-              </span>
-              <button onClick={() => handleDelete(a.id)} style={{ fontSize: 12, color: "var(--color-negative)", textAlign: "right" }}>
-                Delete
-              </button>
+        {/* Planned rule types */}
+        <div style={{
+          marginTop: 28,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 10,
+          width: "100%",
+          maxWidth: 640,
+        }}>
+          {PLANNED.map((p) => (
+            <div key={p.label} style={{
+              background: "var(--color-bg-tile)",
+              border: "1px solid var(--color-border-soft)",
+              borderRadius: "var(--radius-lg)",
+              padding: "14px 16px",
+              textAlign: "left",
+            }}>
+              <div style={{
+                fontSize: 10,
+                textTransform: "uppercase" as const,
+                letterSpacing: 1,
+                color: "var(--color-text-muted)",
+                marginBottom: 6,
+              }}>
+                In development
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{p.label}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>{p.desc}</div>
             </div>
           ))}
         </div>
-      ) : null}
+      </div>
     </div>
   );
-}
-
-function formatCondition(type: string, condition: Record<string, unknown>): string {
-  if (type === "pct_change") return `${condition.pctThreshold}%`;
-  if (condition.threshold) return `${condition.threshold} ADA`;
-  return JSON.stringify(condition);
 }
