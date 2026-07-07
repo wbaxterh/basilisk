@@ -1,0 +1,38 @@
+---
+slug: v0-3-charts-community
+title: "v0.3 — Candlestick charts, Minswap coverage, and community boosts"
+date: 2026-07-06
+authors:
+  - name: Wes Huber
+    title: Founder
+    url: https://github.com/wbaxterh
+tags: [release]
+---
+
+v0.2 shipped with two honest gaps: no Minswap, no charts. v0.3 closes both — OHLCV candles on every token page that has a chartable pool, Minswap liquidity and volume merged into the screener — and adds a community layer where boosting a token costs a wallet signature, not 300 ADA.
+
+{/* truncate */}
+
+## What's live today
+
+- **Candlestick charts** — 15m / 1h / 4h / 1d OHLCV on token detail pages, powered by GeckoTerminal's free API. The chart reads the token's **top GeckoTerminal pool** (in practice its main Minswap pool) and says so on the chart — it's one pool's candles, not an all-DEX aggregate. Also public at [`GET /api/v1/tokens/{asset}/ohlcv`](/docs/api/overview).
+- **Minswap coverage** — GeckoTerminal's Cardano index (Minswap) is disjoint from DexScreener's (SundaeSwap + WingRiders), so we merge the two without double counting. Screener and token aggregates now carry `coverage: "SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal"`, and token pages show Minswap pools alongside the rest.
+- **Community boosts** — every wallet gets **one free boost per UTC day**, cast with a CIP-30 `signData` signature and verified server-side (CIP-8/COSE). Boost counts drive trending. For contrast: on TapTools, a Boost cost 300 ADA — visibility went to whoever paid. Here it's one wallet, one boost, zero ADA.
+- **Token discussion** — per-token comment threads, wallet-signed, no account. 500 chars, 10 per wallet per day.
+- **Watchlist** — keep your tokens one click away.
+- **All of it in the API** — boosts and comments are public endpoints too ([`/api/v1/community/*`](/docs/api/overview)), including the signed-payload write contract, still keyless and free.
+
+## Honesty notes
+
+- Charts exist only where GeckoTerminal indexes a pool. A token whose liquidity lives entirely on SundaeSwap/WingRiders gets a 404 from the OHLCV endpoint and no chart — we'd rather show nothing than fake it.
+- Candles are **USD-denominated** (GeckoTerminal returns USD even for ADA-quoted pools); ADA-quoted charts aren't possible from this source.
+- GeckoTerminal's free tier is roughly 10 calls/minute, so chart data is cached 60–120 s server-side. That budget — and the top-pool-only tradeoff — is written down in [ADR-005](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/005-geckoterminal-ohlcv-minswap.md); the community layer's design (Neon Postgres, signature verification, replay protection) is [ADR-006](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/006-community-layer-neon-cip8.md).
+- Boosts and comments live in our database, off-chain. Stake addresses (public on-chain data) are the only identity stored.
+
+## What's next
+
+- **Own chain ingestion (Kupmios, ADR-001)** — the permanent fix for all-DEX candles, ADA-quoted charts, and a per-swap trades feed.
+- **x402 pay-per-query** — still in development ([the honest state of x402 on Cardano](/docs/agents/x402)).
+- **Moderation tooling** for the discussion layer before it needs it.
+
+Something missing or mislabeled? [GitHub issues](https://github.com/wbaxterh/basilisk/issues) — coverage honesty is a feature, hold us to it.

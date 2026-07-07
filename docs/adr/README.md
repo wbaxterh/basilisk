@@ -22,3 +22,5 @@ Each ADR follows [Michael Nygard's template](https://cognitect.com/blog/2011/11/
 | [002](002-public-free-data-architecture.md) | Public free APIs (DexScreener + Koios + CoinGecko + handle.me) as Phase-0 data plane | Accepted | 2026-07-06 |
 | [003](003-api-v1-from-nextjs-routes.md) | Public /api/v1 from Next.js route handlers on Vercel | Accepted | 2026-07-06 |
 | [004](004-mcp-server-in-app.md) | MCP server hosted in-app via mcp-handler | Accepted | 2026-07-06 |
+| [005](005-geckoterminal-ohlcv-minswap.md) | GeckoTerminal free API for OHLCV candles + Minswap coverage | Accepted | 2026-07-06 |
+| [006](006-community-layer-neon-cip8.md) | Community layer (boosts + discussion) on Neon Postgres with CIP-30/CIP-8 wallet signatures | Accepted | 2026-07-06 |

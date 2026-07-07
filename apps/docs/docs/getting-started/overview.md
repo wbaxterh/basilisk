@@ -9,30 +9,30 @@ Basilisk has three surfaces, depending on who you are:
 
 ## 1. Trader — use the app
 
-Head to **[basilisk-seven.vercel.app](https://basilisk-seven.vercel.app)** and request early access. Once you're in, you can:
+Head to **[basilisk-seven.vercel.app](https://basilisk-seven.vercel.app)**. What you can do today:
 
-- Connect a Cardano wallet (CIP-30: Lace, Eternl, Nami, Typhon, Flint) or watch any address
-- See live charts and OHLCV candles for every major DEX
-- Track portfolio value, P&L, and holdings over time
-- Set alerts on price, % moves, or whale activity
-- Screen the market — top tokens, gainers, losers, trending
+- **Screen the market** — curated Cardano native tokens with live price, volume, liquidity, and txns (SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal — labeled honestly, never sold as "total Cardano volume")
+- **Candlestick charts** — OHLCV candles on token pages (15m / 1h / 4h / 1d), read from the token's top GeckoTerminal pool (in practice its main Minswap pool); the chart labels which pool it's showing
+- **Boost tokens & see what's trending** — one **free** boost per wallet per day (CIP-30 signature, no payment — unlike the old TapTools model where a Boost cost 300 ADA), and trending ranks by those community boosts
+- **Discuss** — per-token comment threads, wallet-signed, no account needed
+- **Watchlist** — keep the tokens you care about one click away
+- **Look up any wallet** — `addr1...`, `stake1...`, or `$handle`: balance, rewards, delegation, and holdings with USD values where priced
 
-No setup beyond a wallet (or just an email). The free tier covers everything most traders need.
+No account, no signup — connect a CIP-30 wallet (Lace, Eternl, Typhon, …) only when you want to boost or comment.
 
 ## 2. Developer — use the API
 
-The REST API gives you the same data that powers the UI. Free tier with generous limits.
+The REST API gives you the same data that powers the UI — screener, token detail, OHLCV candles, wallets, market, community. **Free and keyless today.**
 
 ```bash
-curl https://basilisk-seven.vercel.app/api/v1/prices/cardano \
-  -H "X-API-Key: $BASILISK_KEY"
+curl https://basilisk-seven.vercel.app/api/v1/tokens
 ```
 
-→ See [REST API → Overview](../api/overview) for endpoints, keys, and rate limits.
+→ See [REST API → Overview](../api/overview) for endpoints, coverage caveats, and cache/rate expectations.
 
 ## 3. AI Agent — use x402 + MCP
 
-Basilisk is the first Cardano analytics platform built for autonomous agents. No accounts. No API keys. Just pay per request in native ADA via the x402 payment protocol, or connect via the Model Context Protocol (MCP) for LLM tool use.
+Basilisk is built for autonomous agents. No accounts, no API keys: connect via the hosted Model Context Protocol (MCP) server for LLM tool use — live today — and x402 pay-per-request in ADA is in development.
 
 → See [For Agents → Overview](../agents/overview) for setup.
 

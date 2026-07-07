@@ -24,6 +24,12 @@ export interface ConnectedWallet {
   balance: string; // lovelace
 }
 
+/** CIP-30 DataSignature returned by api.signData (CIP-8/COSE, hex CBOR). */
+export interface DataSignature {
+  signature: string; // COSE_Sign1 cbor hex
+  key: string; // COSE_Key cbor hex
+}
+
 /** CIP-30 wallet API (subset we use). */
 export interface CardanoWalletApi {
   getBalance(): Promise<string>;
@@ -32,6 +38,7 @@ export interface CardanoWalletApi {
   getUtxos(): Promise<string[] | null>;
   getUsedAddresses(): Promise<string[]>;
   getNetworkId(): Promise<number>;
+  signData(addressHex: string, payloadHex: string): Promise<DataSignature>;
 }
 
 /** CIP-30 initial API on window.cardano[walletId]. */
@@ -107,6 +114,51 @@ export async function connectWallet(walletId: string): Promise<ConnectedWallet> 
     changeAddress,
     balance,
   };
+}
+
+/**
+ * First reward address (hex-encoded 29-byte address) from CIP-30.
+ * The server derives the bech32 stake1 address from this.
+ */
+export async function getRewardAddressHex(api: CardanoWalletApi): Promise<string> {
+  const rewardAddresses = await api.getRewardAddresses();
+  const rewardAddressHex = rewardAddresses[0];
+  if (!rewardAddressHex) {
+    throw new Error("Wallet returned no reward (stake) address.");
+  }
+  return rewardAddressHex;
+}
+
+/** Signed payload bundle ready to POST to /api/v1/community endpoints. */
+export interface SignedCommunityPayload {
+  payloadJson: string;
+  signature: string; // COSE_Sign1 cbor hex
+  key: string; // COSE_Key cbor hex
+  rewardAddressHex: string;
+}
+
+function utf8ToHex(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i]!.toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Sign a community payload (boost/comment) with the wallet's reward address
+ * via CIP-30 signData. The exact JSON string that was signed is returned so
+ * the server can verify byte-for-byte.
+ */
+export async function signCommunityPayload(
+  api: CardanoWalletApi,
+  payloadObj: object
+): Promise<SignedCommunityPayload> {
+  const payloadJson = JSON.stringify(payloadObj);
+  const rewardAddressHex = await getRewardAddressHex(api);
+  const { signature, key } = await api.signData(rewardAddressHex, utf8ToHex(payloadJson));
+  return { payloadJson, signature, key, rewardAddressHex };
 }
 
 /** Format lovelace balance to ADA with 2 decimal places. */

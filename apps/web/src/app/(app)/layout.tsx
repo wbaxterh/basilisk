@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { WalletProvider } from "../../lib/wallet-context";
 
-/** App pages get the sidebar + header chrome. */
+/** App pages get the sidebar + header chrome + wallet context. */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <WalletProvider>
       <Sidebar />
       <div style={{
         marginLeft: "var(--sidebar-width)",
@@ -18,6 +19,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-    </>
+    </WalletProvider>
   );
 }
