@@ -20,8 +20,13 @@
 import { after } from "next/server";
 
 import { TOKEN_REGISTRY, TOKEN_REGISTRY_BY_ADDRESS } from "@/data/token-registry";
+import { getTokenPools, getTokensMulti, type GeckoPool } from "@/lib/gecko-data";
 
 export const COVERAGE = "SundaeSwap + WingRiders via DexScreener";
+/** Used when a GeckoTerminal merge actually contributed data. GT's Cardano
+ * index is Minswap-led but also carries SaturnSwap pools — name both. */
+export const COVERAGE_WITH_MINSWAP =
+  "SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal";
 
 const DEX_BASE = "https://api.dexscreener.com";
 const KOIOS_BASE = "https://api.koios.rest/api/v1";
@@ -262,6 +267,8 @@ export interface PairRow {
   buys24h: number;
   sells24h: number;
   url: string;
+  /** Which indexer reported this pool (GT rows have no txn counts → 0s). */
+  source?: "dexscreener" | "geckoterminal";
 }
 
 export interface ScreenerResponse {
@@ -412,23 +419,46 @@ async function dexTokenBasePairs(unit: string): Promise<DexPairRaw[]> {
  */
 export async function getScreener(): Promise<ScreenerResponse> {
   return cached("screener", TTL.screener, async () => {
-    const results = await Promise.all(
-      TOKEN_REGISTRY.map(async (t) => {
-        const unit = t.address.toLowerCase();
-        try {
-          const pairs = await dexTokenBasePairs(unit);
-          return pairs.length > 0 ? aggregatePairs(unit, pairs) : null;
-        } catch {
-          return null; // one token failing must not sink the screener
-        }
-      })
-    );
+    const units = TOKEN_REGISTRY.map((t) => t.address.toLowerCase());
+    // Minswap enrichment via GeckoTerminal tokens/multi: 2 batched calls for
+    // the 31-token registry, cached 300 s in gecko-data (GT free tier is
+    // ~10 req/min). GT's Cardano coverage (Minswap + SaturnSwap) is disjoint
+    // from DexScreener's Sundae+WingRiders, so adding its per-token
+    // reserve/volume does not double count. Failure ⇒ DexScreener-only +
+    // old coverage string.
+    const [results, gtStats] = await Promise.all([
+      Promise.all(
+        TOKEN_REGISTRY.map(async (t) => {
+          const unit = t.address.toLowerCase();
+          try {
+            const pairs = await dexTokenBasePairs(unit);
+            return pairs.length > 0 ? aggregatePairs(unit, pairs) : null;
+          } catch {
+            return null; // one token failing must not sink the screener
+          }
+        })
+      ),
+      getTokensMulti(units).catch(() => null),
+    ]);
+
+    let gtContributed = false;
     const tokens = results
       .filter((t): t is ScreenerToken => t != null)
+      .map((t) => {
+        const gt = gtStats?.get(t.address);
+        if (!gt || (gt.reserveUsd <= 0 && gt.volume24hUsd <= 0)) return t;
+        gtContributed = true;
+        return {
+          ...t,
+          liquidityUsd: t.liquidityUsd + gt.reserveUsd,
+          volume24h: t.volume24h + gt.volume24hUsd,
+          dexIds: t.dexIds.includes("minswap") ? t.dexIds : [...t.dexIds, "minswap"],
+        };
+      })
       .sort((a, b) => b.liquidityUsd - a.liquidityUsd);
     if (tokens.length === 0) throw new Error("DexScreener returned no pairs for the registry");
     return {
-      coverage: COVERAGE,
+      coverage: gtContributed ? COVERAGE_WITH_MINSWAP : COVERAGE,
       updatedAt: new Date().toISOString(),
       count: tokens.length,
       tokens,
@@ -584,8 +614,11 @@ export async function getTokenDetail(asset: string): Promise<TokenDetail | null>
   }
   return cached(`detail:${unit}`, TTL.detail, async () => {
     const { policyId, assetNameHex } = splitUnit(unit);
-    const [pairsResult, infoMap, holders] = await Promise.all([
+    // GeckoTerminal adds Minswap pools (its only Cardano dex). Any GT
+    // failure must never break detail: catch → DexScreener-only response.
+    const [pairsResult, gtPools, infoMap, holders] = await Promise.all([
       fetchJson<DexPairRaw[]>(`${DEX_BASE}/token-pairs/v1/cardano/${unit}`).catch(() => [] as DexPairRaw[]),
+      getTokenPools(unit).catch(() => [] as GeckoPool[]),
       koiosAssetInfoBatch([unit]),
       getHolders(policyId, assetNameHex),
     ]);
@@ -597,7 +630,7 @@ export async function getTokenDetail(asset: string): Promise<TokenDetail | null>
       (p) => p.chainId === "cardano" && p.baseToken?.address?.toLowerCase() === unit
     );
     const info = infoMap.get(unit) ?? null;
-    if (cardanoPairs.length === 0 && !info) return null;
+    if (cardanoPairs.length === 0 && gtPools.length === 0 && !info) return null;
 
     const base: ScreenerToken =
       cardanoPairs.length > 0
@@ -624,23 +657,58 @@ export async function getTokenDetail(asset: string): Promise<TokenDetail | null>
             pairCreatedAt: null,
           };
 
-    const pairs: PairRow[] = cardanoPairs
+    const dsPairs: PairRow[] = cardanoPairs.map((p) => ({
+      dexId: p.dexId,
+      pairAddress: p.pairAddress,
+      quoteSymbol: p.quoteToken?.symbol ?? "ADA",
+      priceUsd: num(p.priceUsd),
+      liquidityUsd: p.liquidity?.usd ?? 0,
+      volume24h: p.volume?.h24 ?? 0,
+      buys24h: p.txns?.h24?.buys ?? 0,
+      sells24h: p.txns?.h24?.sells ?? 0,
+      url: p.url,
+      source: "dexscreener" as const,
+    }));
+
+    // Append GT (Minswap) pools not already reported by DexScreener. GT
+    // does not expose per-pool buy/sell counts on this endpoint → 0s, with
+    // source: "geckoterminal" so UIs can render "—" instead of 0.
+    const dsAddresses = new Set(dsPairs.map((p) => p.pairAddress.toLowerCase()));
+    const gtRows: PairRow[] = gtPools
+      .filter((p) => !dsAddresses.has(p.address.toLowerCase()))
       .map((p) => ({
         dexId: p.dexId,
-        pairAddress: p.pairAddress,
-        quoteSymbol: p.quoteToken?.symbol ?? "ADA",
-        priceUsd: num(p.priceUsd),
-        liquidityUsd: p.liquidity?.usd ?? 0,
-        volume24h: p.volume?.h24 ?? 0,
-        buys24h: p.txns?.h24?.buys ?? 0,
-        sells24h: p.txns?.h24?.sells ?? 0,
-        url: p.url,
-      }))
-      .sort((a, b) => b.liquidityUsd - a.liquidityUsd);
+        pairAddress: p.address,
+        quoteSymbol: p.quoteSymbol,
+        priceUsd: p.baseTokenPriceUsd,
+        liquidityUsd: p.reserveUsd,
+        volume24h: p.volume24hUsd,
+        buys24h: 0,
+        sells24h: 0,
+        url: `https://www.geckoterminal.com/cardano/pools/${p.address}`,
+        source: "geckoterminal" as const,
+      }));
+    const gtContributed = gtRows.length > 0;
+
+    const pairs: PairRow[] = [...dsPairs, ...gtRows].sort(
+      (a, b) => b.liquidityUsd - a.liquidityUsd
+    );
+
+    // Recompute merged totals across both sources (no double counting:
+    // DexScreener = SundaeSwap + WingRiders, GT = Minswap only, deduped).
+    const liquidityUsd = pairs.reduce((s, p) => s + p.liquidityUsd, 0);
+    const volume24h = pairs.reduce((s, p) => s + p.volume24h, 0);
+    const dexIds = [...new Set([...base.dexIds, ...gtRows.map((p) => p.dexId)])];
 
     return {
       ...base,
-      coverage: COVERAGE,
+      liquidityUsd,
+      volume24h,
+      dexIds,
+      pairCount: pairs.length,
+      priceUsd: base.priceUsd ?? gtRows[0]?.priceUsd ?? null,
+      topPairAddress: pairs[0]?.pairAddress ?? base.topPairAddress,
+      coverage: gtContributed ? COVERAGE_WITH_MINSWAP : COVERAGE,
       pairs,
       policyId,
       assetNameHex,

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ScreenerToken, ScreenerResponse, SearchResponse } from "../../../lib/dex-data";
 
-type Tab = "top" | "gainers" | "losers" | "volume" | "new";
+type Tab = "top" | "favorites" | "trending" | "gainers" | "losers" | "volume" | "new";
 type SortKey =
   | "price"
   | "change1h"
@@ -24,6 +24,8 @@ interface RowData {
 
 const TABS: { key: Tab; label: string; help: string }[] = [
   { key: "top", label: "Top", help: "By DEX liquidity" },
+  { key: "favorites", label: "Favorites", help: "Your watchlist — stored in this browser, no login needed" },
+  { key: "trending", label: "Trending", help: "Ranked by free community boosts — one wallet, one boost per UTC day" },
   { key: "gainers", label: "Gainers", help: "Best 24H performers" },
   { key: "losers", label: "Losers", help: "Worst 24H performers" },
   { key: "volume", label: "Volume", help: "By 24H trading volume" },
@@ -32,6 +34,8 @@ const TABS: { key: Tab; label: string; help: string }[] = [
 
 const TAB_DEFAULT: Record<Tab, { key: SortKey; desc: boolean }> = {
   top: { key: "liquidity", desc: true },
+  favorites: { key: "liquidity", desc: true },
+  trending: { key: "volume24h", desc: true },
   gainers: { key: "change24h", desc: true },
   losers: { key: "change24h", desc: false },
   volume: { key: "volume24h", desc: true },
@@ -41,7 +45,16 @@ const TAB_DEFAULT: Record<Tab, { key: SortKey; desc: boolean }> = {
 const DEX_LABELS: Record<string, string> = {
   sundaeswap: "Sundae",
   wingriders: "WingRiders",
+  minswap: "Minswap",
 };
+
+const WATCHLIST_KEY = "basilisk.watchlist";
+const BOOST_CHUNK = 60; // API contract: at most 60 units per GET
+
+interface BoostSummaryLite {
+  unit: string;
+  boosts24h: number;
+}
 
 /* ─── Formatters ─────────────────────────────────────────── */
 
@@ -124,11 +137,72 @@ export default function ScreenerPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDesc, setSortDesc] = useState(true);
   const [remote, setRemote] = useState<{ query: string; tokens: ScreenerToken[]; loading: boolean } | null>(null);
+  const [coverage, setCoverage] = useState<string | null>(null);
+  // Community boosts: null = not loaded yet OR endpoint unavailable.
+  const [boostMap, setBoostMap] = useState<Record<string, number> | null>(null);
+  const [boostsDown, setBoostsDown] = useState(false);
+  // Watchlist units, persisted to localStorage — no login needed.
+  const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
+
+  // Hydrate watchlist from localStorage (client-only).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WATCHLIST_KEY);
+      if (raw) {
+        const arr: unknown = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          setWatchlist(new Set(arr.filter((u): u is string => typeof u === "string")));
+        }
+      }
+    } catch {
+      /* private mode / corrupt value — start empty */
+    }
+  }, []);
+
+  const toggleWatch = (unit: string) => {
+    setWatchlist((cur) => {
+      const next = new Set(cur);
+      if (next.has(unit)) next.delete(unit);
+      else next.add(unit);
+      try {
+        localStorage.setItem(WATCHLIST_KEY, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable — keep in-memory only */
+      }
+      return next;
+    });
+  };
 
   // Load + 60 s refresh + 10 s retry on failure.
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Boost counts ride the same 60 s cycle, fired after each screener load.
+    // Failure (e.g. 503 with no DB) hides the chips instead of breaking rows.
+    const loadBoosts = async (units: string[]) => {
+      if (units.length === 0) return;
+      try {
+        const chunks: string[][] = [];
+        for (let i = 0; i < units.length; i += BOOST_CHUNK) chunks.push(units.slice(i, i + BOOST_CHUNK));
+        const results = await Promise.all(
+          chunks.map(async (chunk) => {
+            const res = await fetch(`/api/v1/community/boosts?units=${chunk.join(",")}`);
+            if (!res.ok) throw new Error(`${res.status}`);
+            return (await res.json()) as { summaries: BoostSummaryLite[] };
+          })
+        );
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const r of results) for (const s of r.summaries) map[s.unit] = s.boosts24h;
+        setBoostMap(map);
+        setBoostsDown(false);
+      } catch {
+        if (cancelled) return;
+        setBoostMap(null);
+        setBoostsDown(true);
+      }
+    };
 
     const load = async () => {
       try {
@@ -138,7 +212,9 @@ export default function ScreenerPage() {
         if (cancelled) return;
         setTokens(data.tokens);
         setUpdatedAt(data.updatedAt);
+        setCoverage(data.coverage);
         setStatus("ok");
+        void loadBoosts(data.tokens.map((t) => t.address.toLowerCase()));
       } catch {
         if (cancelled) return;
         setStatus("delayed");
@@ -181,7 +257,7 @@ export default function ScreenerPage() {
 
   const searching = search.trim().length > 0;
   const showAge = activeTab === "new" && !searching;
-  const colCount = showAge ? 11 : 10;
+  const colCount = showAge ? 12 : 11;
 
   const rows = useMemo<RowData[]>(() => {
     const q = search.trim().toLowerCase();
@@ -200,10 +276,22 @@ export default function ScreenerPage() {
     if (activeTab === "gainers") base = base.filter((t) => (t.change24h ?? 0) > 0);
     else if (activeTab === "losers") base = base.filter((t) => (t.change24h ?? 0) < 0);
     else if (activeTab === "new") base = base.filter((t) => t.pairCreatedAt != null);
+    else if (activeTab === "favorites") base = base.filter((t) => watchlist.has(t.address));
+    else if (activeTab === "trending" && boostMap) base = base.filter((t) => (boostMap[t.address] ?? 0) > 0);
     list = base.map((t) => ({ token: t, viaSearch: false }));
+    if (activeTab === "trending" && sortKey == null) {
+      // Boosts desc, tiebreak 24H volume. With the endpoint down (boostMap
+      // null) every count is 0 → pure volume ranking, flagged by info note.
+      return [...list].sort((a, b) => {
+        const ab = boostMap?.[a.token.address] ?? 0;
+        const bb = boostMap?.[b.token.address] ?? 0;
+        if (bb !== ab) return bb - ab;
+        return b.token.volume24h - a.token.volume24h;
+      });
+    }
     const def = TAB_DEFAULT[activeTab];
     return sortRows(list, sortKey ?? def.key, sortKey ? sortDesc : def.desc);
-  }, [tokens, remote, search, activeTab, sortKey, sortDesc]);
+  }, [tokens, remote, search, activeTab, sortKey, sortDesc, watchlist, boostMap]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDesc(!sortDesc);
@@ -230,7 +318,7 @@ export default function ScreenerPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         <Chip>
           <DatabaseIcon />
-          DEX data: SundaeSwap + WingRiders via DexScreener
+          DEX data: {coverage ?? "SundaeSwap + WingRiders via DexScreener"}
         </Chip>
         <Chip>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-positive)", flexShrink: 0 }} />
@@ -314,17 +402,32 @@ export default function ScreenerPage() {
         </div>
       )}
 
+      {/* Trending fallback note when the boosts endpoint is unavailable */}
+      {activeTab === "trending" && boostsDown && !searching && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", marginBottom: 10,
+          background: "rgba(112, 236, 253, 0.08)", border: "1px solid rgba(112, 236, 253, 0.25)",
+          borderRadius: 6, color: "var(--color-info)", fontSize: 12, fontWeight: 600,
+        }}>
+          <InfoIcon />
+          Community boosts temporarily unavailable — ranking by 24H volume instead.
+        </div>
+      )}
+
       {/* Table */}
       <div style={{
         background: "var(--color-bg-elevated)", borderRadius: "var(--radius-lg)",
         border: "1px solid var(--color-border)", overflow: "hidden",
       }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1016 }}>
             <thead>
               <tr style={{ background: "var(--color-bg-secondary)", borderBottom: "1px solid var(--color-border)" }}>
-                <th style={{ ...thStyle, textAlign: "left", width: 44, minWidth: 44, position: "sticky", left: 0, zIndex: 3, background: "var(--color-bg-secondary)" }}>#</th>
-                <th style={{ ...thStyle, textAlign: "left", minWidth: 200, position: "sticky", left: 44, zIndex: 3, background: "var(--color-bg-secondary)" }}>Token</th>
+                <th aria-label="Watchlist" style={{ ...thStyle, textAlign: "center", width: 36, minWidth: 36, padding: "10px 6px", position: "sticky", left: 0, zIndex: 3, background: "var(--color-bg-secondary)" }}>
+                  <span style={{ display: "inline-flex", color: "var(--color-text-muted)" }}><StarIcon filled={false} /></span>
+                </th>
+                <th style={{ ...thStyle, textAlign: "left", width: 44, minWidth: 44, position: "sticky", left: 36, zIndex: 3, background: "var(--color-bg-secondary)" }}>#</th>
+                <th style={{ ...thStyle, textAlign: "left", minWidth: 200, position: "sticky", left: 80, zIndex: 3, background: "var(--color-bg-secondary)" }}>Token</th>
                 {showAge && <SortTh label="Age" k="age" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />}
                 <SortTh label="Price" k="price" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
                 <SortTh label="1H %" k="change1h" sortKey={sortKey} sortDesc={sortDesc} onSort={toggleSort} />
@@ -351,7 +454,15 @@ export default function ScreenerPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={colCount} style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)", fontSize: 13 }}>
-                    {remoteSearching ? "searching DEX pairs…" : searching ? "No matches on SundaeSwap or WingRiders." : "No tokens in this view."}
+                    {remoteSearching
+                      ? "searching DEX pairs…"
+                      : searching
+                      ? "No matches on SundaeSwap or WingRiders."
+                      : activeTab === "favorites"
+                      ? "Star tokens to build your watchlist — no login needed"
+                      : activeTab === "trending"
+                      ? "No boosts yet today — connect a wallet on any token page and cast the first one."
+                      : "No tokens in this view."}
                   </td>
                 </tr>
               ) : (
@@ -361,6 +472,9 @@ export default function ScreenerPage() {
                     row={row}
                     rank={i + 1}
                     showAge={showAge}
+                    boosts={boostMap?.[row.token.address] ?? 0}
+                    watched={watchlist.has(row.token.address)}
+                    onToggleWatch={() => toggleWatch(row.token.address)}
                     onOpen={() => router.push(`/tokens/${row.token.address}`)}
                   />
                 ))
@@ -374,7 +488,7 @@ export default function ScreenerPage() {
         <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 10, letterSpacing: 0.3, display: "flex", gap: 6, flexWrap: "wrap" }}>
           <span>{rows.length} tokens</span>
           <span>·</span>
-          <span>DEX data: SundaeSwap + WingRiders via DexScreener</span>
+          <span>DEX data: {coverage ?? "SundaeSwap + WingRiders via DexScreener"}</span>
           {updatedAt && (
             <>
               <span>·</span>
@@ -425,8 +539,9 @@ function SortTh({ label, k, sortKey, sortDesc, onSort }: {
   );
 }
 
-function TokenRow({ row, rank, showAge, onOpen }: {
-  row: RowData; rank: number; showAge: boolean; onOpen: () => void;
+function TokenRow({ row, rank, showAge, boosts, watched, onToggleWatch, onOpen }: {
+  row: RowData; rank: number; showAge: boolean; boosts: number;
+  watched: boolean; onToggleWatch: () => void; onOpen: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const t = row.token;
@@ -447,15 +562,33 @@ function TokenRow({ row, rank, showAge, onOpen }: {
         transition: "background 100ms",
       }}
     >
-      <td style={{ ...tdStyle, width: 44, minWidth: 44, position: "sticky", left: 0, zIndex: 1, background: stickyBg }}>
+      <td style={{ ...tdStyle, width: 36, minWidth: 36, padding: "10px 6px", textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: stickyBg }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleWatch(); }}
+          onKeyDown={(e) => e.stopPropagation()}
+          aria-label={watched ? `Remove ${t.symbol} from watchlist` : `Add ${t.symbol} to watchlist`}
+          aria-pressed={watched}
+          title={watched ? "Remove from watchlist" : "Add to watchlist"}
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            padding: 3, borderRadius: 4, background: "transparent",
+            color: watched ? "var(--color-brand)" : "var(--color-text-muted)",
+            transition: "color 120ms",
+          }}
+        >
+          <StarIcon filled={watched} />
+        </button>
+      </td>
+      <td style={{ ...tdStyle, width: 44, minWidth: 44, position: "sticky", left: 36, zIndex: 1, background: stickyBg }}>
         <span style={{ color: "var(--color-text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>{rank}</span>
       </td>
-      <td style={{ ...tdStyle, minWidth: 200, position: "sticky", left: 44, zIndex: 1, background: stickyBg }}>
+      <td style={{ ...tdStyle, minWidth: 200, position: "sticky", left: 80, zIndex: 1, background: stickyBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <TokenLogo src={t.imageUrl} symbol={t.symbol} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)" }}>{t.symbol}</span>
+              {boosts > 0 && <BoostChip count={boosts} />}
               {t.dexIds.map((d) => (
                 <span
                   key={d}
@@ -590,8 +723,8 @@ function SkeletonRow({ cols }: { cols: number }) {
         <td key={i} style={{ padding: "13px 12px" }}>
           <span style={{
             display: "block", height: 10, borderRadius: 3,
-            width: i === 1 ? "80%" : "60%",
-            marginLeft: i > 1 ? "auto" : undefined,
+            width: i === 0 ? 12 : i === 2 ? "80%" : "60%",
+            marginLeft: i > 2 ? "auto" : undefined,
             background: "var(--color-bg-secondary)",
           }} />
         </td>
@@ -601,6 +734,51 @@ function SkeletonRow({ cols }: { cols: number }) {
 }
 
 /* ─── Chips & icons ──────────────────────────────────────── */
+
+/** Flame chip with the 24H community-boost count (free, 1 per wallet per day). */
+function BoostChip({ count }: { count: number }) {
+  return (
+    <span
+      title={`${count} community boost${count === 1 ? "" : "s"} in the last 24H — free, one per wallet per UTC day`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        fontSize: 9, fontWeight: 700, fontFamily: "var(--font-mono)",
+        padding: "1px 6px", borderRadius: 999,
+        color: "var(--color-brand)", background: "var(--color-brand-soft)",
+        border: "1px solid rgba(32, 235, 122, 0.25)", whiteSpace: "nowrap",
+      }}
+    >
+      <FlameIcon />
+      {count.toLocaleString("en-US")}
+    </span>
+  );
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </svg>
+  );
+}
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (

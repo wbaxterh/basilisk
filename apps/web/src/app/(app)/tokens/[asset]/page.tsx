@@ -11,6 +11,9 @@ import {
   fmtCount,
   type TokenDetail as LegacyTokenDetail,
 } from "@/lib/public-data";
+import TokenChart from "@/components/TokenChart";
+import BoostButton from "@/components/community/BoostButton";
+import Discussion from "@/components/community/Discussion";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -274,7 +277,7 @@ function Card({
   );
 }
 
-function CoverageChip() {
+function CoverageChip({ text }: { text?: string }) {
   return (
     <span
       style={{
@@ -300,7 +303,7 @@ function CoverageChip() {
           flexShrink: 0,
         }}
       />
-      {COVERAGE_TEXT}
+      {text ?? COVERAGE_TEXT}
     </span>
   );
 }
@@ -568,6 +571,10 @@ function AssetTokenPage({ unit }: { unit: string }) {
       <TokenHeader detail={detail} />
       <HeroBand detail={detail} />
 
+      <div style={{ marginBottom: 14 }}>
+        <TokenChart asset={unit} />
+      </div>
+
       <div
         style={{
           display: "grid",
@@ -584,7 +591,7 @@ function AssetTokenPage({ unit }: { unit: string }) {
         <OnChainCard detail={detail} />
       </div>
 
-      <PairsTable pairs={detail.pairs} />
+      <PairsTable pairs={detail.pairs} coverage={detail.coverage} />
 
       <div
         style={{
@@ -596,6 +603,10 @@ function AssetTokenPage({ unit }: { unit: string }) {
       >
         <LiveTradesCard />
         <AgentCard unit={unit} />
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <Discussion unit={unit} symbol={detail.symbol} />
       </div>
     </div>
   );
@@ -699,6 +710,10 @@ function TokenHeader({ detail }: { detail: TokenDetail }) {
             </p>
           )}
         </div>
+
+        <div style={{ marginLeft: "auto" }}>
+          <BoostButton unit={detail.address} symbol={detail.symbol} />
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
@@ -783,7 +798,7 @@ function HeroBand({ detail }: { detail: TokenDetail }) {
         <ChangePill label="6H" value={detail.change6h} />
         <ChangePill label="24H" value={detail.change24h} />
         <span style={{ marginLeft: "auto" }}>
-          <CoverageChip />
+          <CoverageChip text={`DEX data: ${detail.coverage}`} />
         </span>
       </div>
     </section>
@@ -1114,7 +1129,7 @@ function OnChainRow({
 // Pairs table
 // ---------------------------------------------------------------------------
 
-function PairsTable({ pairs }: { pairs: PairRow[] }) {
+function PairsTable({ pairs, coverage }: { pairs: PairRow[]; coverage?: string }) {
   return (
     <section
       style={{
@@ -1191,9 +1206,20 @@ function PairsTable({ pairs }: { pairs: PairRow[] }) {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    <span style={{ color: "var(--color-positive)", fontWeight: 700 }}>{fmtCount(p.buys24h)}</span>
-                    <span style={{ color: "var(--color-text-muted)", margin: "0 5px" }}>/</span>
-                    <span style={{ color: "var(--color-negative)", fontWeight: 700 }}>{fmtCount(p.sells24h)}</span>
+                    {p.source === "geckoterminal" ? (
+                      <span
+                        style={{ color: "var(--color-text-muted)" }}
+                        title="Buy/sell counts are not reported by GeckoTerminal"
+                      >
+                        —
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ color: "var(--color-positive)", fontWeight: 700 }}>{fmtCount(p.buys24h)}</span>
+                        <span style={{ color: "var(--color-text-muted)", margin: "0 5px" }}>/</span>
+                        <span style={{ color: "var(--color-negative)", fontWeight: 700 }}>{fmtCount(p.sells24h)}</span>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))
@@ -1211,7 +1237,7 @@ function PairsTable({ pairs }: { pairs: PairRow[] }) {
           flexWrap: "wrap",
         }}
       >
-        <CoverageChip />
+        <CoverageChip text={coverage ? `DEX data: ${coverage}` : undefined} />
         <span style={{ fontSize: 10.5, color: "var(--color-text-muted)" }}>
           Never read these figures as total Cardano volume or liquidity.
         </span>

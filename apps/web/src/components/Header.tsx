@@ -1,40 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { detectWallets, connectWallet, lovelaceToAda, type WalletInfo, type ConnectedWallet } from "../lib/wallet";
+import { useEffect, useRef, useState } from "react";
+
+import { useWallet } from "@/lib/wallet-context";
 
 export default function Header() {
-  const [wallets, setWallets] = useState<WalletInfo[]>([]);
-  const [connected, setConnected] = useState<ConnectedWallet | null>(null);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { status, walletName, walletIcon, stakeShort, error, connect, disconnect } = useWallet();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
+  // Close the connected-wallet menu on outside click.
   useEffect(() => {
-    // Detect wallets after a brief delay (extensions inject after page load).
-    const timer = setTimeout(() => {
-      setWallets(detectWallets());
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleConnect = async (walletId: string) => {
-    setConnecting(true);
-    setError(null);
-    try {
-      const wallet = await connectWallet(walletId);
-      setConnected(wallet);
-      setShowDropdown(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Connection failed");
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleDisconnect = () => {
-    setConnected(null);
-  };
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
 
   return (
     <header style={{
@@ -63,67 +48,46 @@ export default function Header() {
           Mainnet
         </span>
 
-        {/* Wallet connect */}
-        {connected ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{
-              fontSize: 13,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-text-secondary)",
-            }}>
-              {lovelaceToAda(connected.balance)} ADA
-            </span>
+        {/* Wallet connect (context-driven) */}
+        {status === "connected" ? (
+          <div ref={menuRef} style={{ position: "relative" }}>
             <button
-              onClick={handleDisconnect}
+              onClick={() => setMenuOpen((v) => !v)}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
                 fontSize: 13,
-                padding: "8px 16px",
+                padding: "8px 14px",
                 borderRadius: "var(--radius-md)",
                 background: "var(--color-bg-elevated)",
                 border: "1px solid var(--color-border)",
                 color: "var(--color-text-primary)",
                 fontWeight: 500,
+                cursor: "pointer",
               }}
             >
-              {connected.info.icon && (
-                <img
-                  src={connected.info.icon}
-                  alt=""
-                  width={16}
-                  height={16}
-                  style={{ borderRadius: 4 }}
-                />
+              {walletIcon && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={walletIcon} alt="" width={16} height={16} style={{ borderRadius: 4 }} />
               )}
-              {connected.stakeAddress.slice(0, 8)}...{connected.stakeAddress.slice(-4)}
-            </button>
-          </div>
-        ) : (
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              disabled={connecting}
-              style={{
-                fontSize: 13,
-                padding: "8px 16px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--color-brand)",
-                color: "#001A0E",
-                fontWeight: 600,
-                opacity: connecting ? 0.7 : 1,
-              }}
-            >
-              {connecting ? "Connecting..." : "Connect Wallet"}
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                {stakeShort ?? "—"}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                {walletName}
+              </span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-text-muted)" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
 
-            {showDropdown && (
+            {menuOpen && (
               <div style={{
                 position: "absolute",
                 top: "calc(100% + 8px)",
                 right: 0,
-                width: 240,
+                width: 200,
                 background: "var(--color-bg-elevated)",
                 border: "1px solid var(--color-border)",
                 borderRadius: "var(--radius-lg)",
@@ -131,60 +95,70 @@ export default function Header() {
                 zIndex: 200,
                 boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
               }}>
-                {wallets.length === 0 ? (
-                  <div style={{
-                    padding: "16px 12px",
-                    textAlign: "center",
+                <div style={{
+                  padding: "6px 10px 8px",
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  color: "var(--color-text-muted)",
+                  fontWeight: 700,
+                }}>
+                  {walletName ?? "Wallet"}
+                </div>
+                <button
+                  onClick={() => {
+                    disconnect();
+                    setMenuOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                    padding: "9px 10px",
+                    borderRadius: "var(--radius-md)",
                     fontSize: 13,
-                    color: "var(--color-text-muted)",
-                  }}>
-                    No Cardano wallets detected.<br />
-                    <span style={{ fontSize: 12 }}>
-                      Install Nami, Eternl, or Lace.
-                    </span>
-                  </div>
-                ) : (
-                  wallets.map((w) => (
-                    <button
-                      key={w.id}
-                      onClick={() => handleConnect(w.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        width: "100%",
-                        padding: "10px 12px",
-                        borderRadius: "var(--radius-md)",
-                        fontSize: 14,
-                        color: "var(--color-text-primary)",
-                        background: "transparent",
-                        textAlign: "left",
-                      }}
-                    >
-                      {w.icon && (
-                        <img
-                          src={w.icon}
-                          alt=""
-                          width={20}
-                          height={20}
-                          style={{ borderRadius: 4 }}
-                        />
-                      )}
-                      {w.name}
-                    </button>
-                  ))
-                )}
-                {error && (
-                  <div style={{
-                    padding: "8px 12px",
-                    fontSize: 12,
-                    color: "var(--color-negative)",
-                  }}>
-                    {error}
-                  </div>
-                )}
+                    color: "var(--color-text-primary)",
+                    background: "transparent",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Disconnect
+                </button>
               </div>
             )}
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {error && (
+              <span style={{ fontSize: 12, color: "var(--color-negative)", maxWidth: 260 }}>
+                {error}
+              </span>
+            )}
+            <button
+              onClick={() => void connect()}
+              disabled={status === "connecting"}
+              style={{
+                fontSize: 13,
+                padding: "8px 16px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--color-brand)",
+                color: "#001A0E",
+                fontWeight: 600,
+                border: "none",
+                cursor: status === "connecting" ? "wait" : "pointer",
+                opacity: status === "connecting" ? 0.7 : 1,
+              }}
+            >
+              {status === "connecting" ? "Connecting…" : "Connect Wallet"}
+            </button>
           </div>
         )}
       </div>

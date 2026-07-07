@@ -5,7 +5,7 @@ sidebar_position: 1
 
 # REST API
 
-The Basilisk REST API is the exact data plane that powers [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) — the token screener, token detail pages, wallet lookup, and ADA market stats. Same routes, same responses.
+The Basilisk REST API is the exact data plane that powers [basilisk-seven.vercel.app](https://basilisk-seven.vercel.app) — the token screener, token detail pages with candlestick charts, wallet lookup, ADA market stats, and the community boosts + discussion layer. Same routes, same responses.
 
 It is **free and public today**. No API key, no signup, no credit card.
 
@@ -32,10 +32,12 @@ API keys arrive later with a Pro tier (higher limits, more history). Pay-per-que
 ## Coverage caveats — read this first
 
 :::caution Where the data comes from
-- **DEX data: SundaeSwap + WingRiders via DexScreener.** DexScreener indexes only these two DEXes on Cardano (no Minswap). Prices, volume, liquidity, and txn counts are aggregates over that coverage — they are **not** "total Cardano volume" or "total Cardano liquidity". Every aggregate response carries a `coverage` field (`"SundaeSwap + WingRiders via DexScreener"`) so your UI can say so too.
+- **DEX data: SundaeSwap + WingRiders via DexScreener, plus Minswap + SaturnSwap via GeckoTerminal.** DexScreener indexes only SundaeSwap + WingRiders on Cardano; GeckoTerminal adds Minswap and SaturnSwap pools. The two sets are disjoint, so screener and token-detail aggregates merge them without double counting. When the merge contributed data, the `coverage` field reads `"SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal"`; if GeckoTerminal is unavailable, responses degrade to DexScreener-only numbers with `"SundaeSwap + WingRiders via DexScreener"`. Either way, these are **not** "total Cardano volume" or "total Cardano liquidity" — say so in your UI too.
+- **OHLCV candles: GeckoTerminal, top pool only.** The chart endpoint reads one pool's candles (by default the token's deepest GeckoTerminal pool, in practice Minswap) — not an all-DEX aggregate. Each response names the exact pool it read. Tokens with no GeckoTerminal-indexed pool have no chart yet.
 - **On-chain and wallet data: Koios** (community-run Cardano API) — balances, holdings, asset info, supply, holder estimates, chain tip.
 - **ADA market + ecosystem list: CoinGecko** — CEX+DEX pricing, a different universe from the DexScreener figures. Don't mix the two in one aggregate.
 - **$handle resolution: handle.me**, with an on-chain Koios fallback.
+- **Community boosts + comments: Basilisk's own database** — free, wallet-signed, off-chain.
 :::
 
 ## Rate expectations
@@ -50,9 +52,14 @@ There are no hard per-key limits yet because there are no keys — but **be gent
 | `GET /api/v1` | 300 s |
 | `GET /api/v1/tokens` | 45 s |
 | `GET /api/v1/tokens/{asset}` | 60 s |
+| `GET /api/v1/tokens/{asset}/ohlcv` | 60 s (module cache 60–120 s per pool+timeframe) |
 | `GET /api/v1/search` | 30 s |
 | `GET /api/v1/wallet/{address}` | 30 s |
 | `GET /api/v1/market` | 90 s |
+| `GET /api/v1/community/boosts` | 30 s |
+| `GET /api/v1/community/comments/{unit}` | 15 s |
+
+The OHLCV endpoint deserves extra gentleness: GeckoTerminal's free tier is roughly **10 calls per minute** upstream. Basilisk caches hard specifically so you don't have to think about that — polling a chart faster than 60 s is pure waste.
 
 ## Endpoints
 
@@ -61,13 +68,18 @@ There are no hard per-key limits yet because there are no keys — but **be gent
 | `GET /api/v1` | Self-describing API index |
 | `GET /api/v1/tokens` | Screener: curated Cardano native tokens with live price, volume, liquidity, txns |
 | `GET /api/v1/tokens/{asset}` | Token detail by asset unit (`policyId` + `assetNameHex`) |
+| `GET /api/v1/tokens/{asset}/ohlcv` | OHLCV candles (`tf=15m\|1h\|4h\|1d`) from the token's top GeckoTerminal pool |
 | `GET /api/v1/search?q=` | Search Cardano tokens by ticker or name |
 | `GET /api/v1/wallet/{address}` | Wallet overview for `addr1...`, `stake1...`, or `$handle` |
 | `GET /api/v1/market` | ADA market snapshot + price series + optional ecosystem list |
+| `GET /api/v1/community/boosts?units=` | Boost counts (24h / 7d / today) per token |
+| `POST /api/v1/community/boosts` | Cast today's free boost — wallet-signed (CIP-30 `signData`) |
+| `GET /api/v1/community/comments/{unit}` | Latest 50 comments for a token |
+| `POST /api/v1/community/comments/{unit}` | Post a comment — wallet-signed (CIP-30 `signData`) |
 
 ### `GET /api/v1/tokens` — screener
 
-Curated registry tokens enriched with live DexScreener data, aggregated per token across pairs and sorted by liquidity.
+Curated registry tokens enriched with live DexScreener data (aggregated per token across pairs), plus Minswap liquidity/volume merged in from GeckoTerminal, sorted by merged liquidity.
 
 ```bash
 curl https://basilisk-seven.vercel.app/api/v1/tokens
@@ -75,7 +87,7 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens
 
 ```json
 {
-  "coverage": "SundaeSwap + WingRiders via DexScreener",
+  "coverage": "SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal",
   "updatedAt": "2026-07-06T18:04:11.000Z",
   "count": 42,
   "tokens": [
@@ -96,7 +108,7 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens
       "sells24h": 371,
       "txns24h": 783,
       "pairCount": 3,
-      "dexIds": ["sundaeswap", "wingriders"],
+      "dexIds": ["sundaeswap", "wingriders", "minswap"],
       "topPairAddress": "…",
       "pairCreatedAt": 1683131323000
     }
@@ -106,7 +118,7 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens
 
 ### `GET /api/v1/tokens/{asset}` — token detail
 
-`{asset}` is the Cardano asset unit: 56-hex-char policy id + asset name hex, concatenated. Adds per-pair rows and Koios on-chain facts (supply, decimals, fingerprint, mint time, estimated holders).
+`{asset}` is the Cardano asset unit: 56-hex-char policy id + asset name hex, concatenated. Adds per-pair rows and Koios on-chain facts (supply, decimals, fingerprint, mint time, estimated holders). Pair rows carry a `source` field: `"dexscreener"` (SundaeSwap/WingRiders) or `"geckoterminal"` (Minswap — GeckoTerminal doesn't expose per-pool buy/sell counts, so those rows report `0`; render "—", not zero).
 
 ```bash
 curl https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b
@@ -118,7 +130,7 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87
   "symbol": "SNEK",
   "name": "Snek",
   "priceUsd": 0.0021,
-  "coverage": "SundaeSwap + WingRiders via DexScreener",
+  "coverage": "SundaeSwap + WingRiders via DexScreener · Minswap + SaturnSwap via GeckoTerminal",
   "pairs": [
     {
       "dexId": "sundaeswap",
@@ -129,7 +141,20 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87
       "volume24h": 121092.4,
       "buys24h": 280,
       "sells24h": 244,
-      "url": "https://dexscreener.com/cardano/…"
+      "url": "https://dexscreener.com/cardano/…",
+      "source": "dexscreener"
+    },
+    {
+      "dexId": "minswap",
+      "pairAddress": "f5808c2c990d86da54bfc97d89cee6efa20cd8…",
+      "quoteSymbol": "ADA",
+      "priceUsd": 0.0021,
+      "liquidityUsd": 905112.3,
+      "volume24h": 48211.9,
+      "buys24h": 0,
+      "sells24h": 0,
+      "url": "https://www.geckoterminal.com/cardano/pools/f5808c…",
+      "source": "geckoterminal"
     }
   ],
   "policyId": "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f5",
@@ -144,6 +169,43 @@ curl https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87
 ```
 
 Holder counts are Koios **estimates** (`Prefer: count=estimated`) and may be `null` on a cold cache — retry a minute later.
+
+### `GET /api/v1/tokens/{asset}/ohlcv` — candlestick chart data
+
+OHLCV candles from **GeckoTerminal** — the only free source with Minswap coverage. By default the endpoint charts the token's **deepest GeckoTerminal pool** (in practice its main Minswap pool); pass `?pool=<address hex>` (from the token's pairs list) to chart a specific pool instead. The response names exactly which pool it read — the chart is **that pool's candles, not an all-DEX aggregate**.
+
+- `?tf=15m|1h|4h|1d` — timeframe (default `1h`)
+- `?limit=1..500` — number of candles (default `300`)
+- `?pool=<hex>` — chart a specific pool address instead of the top pool
+
+```bash
+curl "https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b/ohlcv?tf=1h&limit=3"
+```
+
+```json
+{
+  "asset": "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+  "pool": {
+    "address": "f5808c2c990d86da54bfc97d89cee6efa20cd8461616359478d96b4c2ffadbb8…",
+    "dexId": "minswap",
+    "name": "SNEK / ADA"
+  },
+  "tf": "1h",
+  "quote": "USD",
+  "candles": [
+    { "time": 1783371600, "open": 0.000415, "high": 0.000420, "low": 0.000415, "close": 0.000420, "volume": 391.64 },
+    { "time": 1783375200, "open": 0.000420, "high": 0.000420, "low": 0.000412, "close": 0.000412, "volume": 735.98 },
+    { "time": 1783378800, "open": 0.000412, "high": 0.000420, "low": 0.000412, "close": 0.000420, "volume": 185.03 }
+  ],
+  "coverage": "Chart: top pool via GeckoTerminal (includes Minswap)"
+}
+```
+
+Notes:
+
+- `time` is Unix **seconds** (UTC), candles ascending. Prices **and volume are USD-denominated** — GeckoTerminal returns USD even for ADA-quoted pools, so ADA-quoted candles are not available from this source.
+- Tokens with no GeckoTerminal-indexed pool (i.e. liquidity only on SundaeSwap/WingRiders) return **404 "No chartable pool found"** — no chart yet, honestly, until Basilisk's own ingestion lands.
+- GeckoTerminal's free tier is ~10 calls/min; responses are cached 60–120 s server-side. Don't poll faster.
 
 ### `GET /api/v1/search?q=` — token search
 
@@ -217,6 +279,100 @@ curl "https://basilisk-seven.vercel.app/api/v1/market?days=1&ecosystem=1"
 }
 ```
 
+## Community endpoints — wallet-signed, free
+
+Boosts and comments are **free** and identified by Cardano wallet signature — no account, no API key, and no payment. One stake address gets **one boost per UTC day** (contrast: TapTools' Boosts cost 300 ADA per boost — here visibility is signed for, not paid for). Comments are capped at 10 per stake address per day.
+
+### The signed-payload contract (POST endpoints)
+
+Writes require a **CIP-30 `signData`** signature made with the wallet's **reward (stake) address**, verified server-side as CIP-8/COSE. The flow in the browser:
+
+1. Build the payload object (see per-endpoint shapes below) and `JSON.stringify` it.
+2. `rewardAddressHex = (await api.getRewardAddresses())[0]` — a 29-byte hex mainnet reward address (`e1`-prefixed).
+3. `{ signature, key } = await api.signData(rewardAddressHex, hex(utf8(payloadJson)))`.
+4. POST `{ payload, signature, key, rewardAddressHex }` — where `payload` is the **exact JSON string** you signed (the server verifies byte-for-byte).
+
+Replay protection is baked into the payloads: boost payloads must carry `day` equal to **today (UTC)**, and comment payloads must carry an ISO `ts` within **±5 minutes** of server time. A captured signature expires on its own — re-sign to retry.
+
+### `GET /api/v1/community/boosts?units=` — boost counts
+
+Boost summaries (24h / 7d / today UTC) for up to 60 comma-separated asset units. Tokens nobody has boosted return zeros.
+
+```bash
+curl "https://basilisk-seven.vercel.app/api/v1/community/boosts?units=279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"
+```
+
+```json
+{
+  "summaries": [
+    {
+      "unit": "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+      "boosts24h": 4,
+      "boosts7d": 19,
+      "boostsToday": 2
+    }
+  ]
+}
+```
+
+### `POST /api/v1/community/boosts` — cast today's boost
+
+Signed payload shape: `{"action":"boost","unit":"<policyId+assetNameHex>","day":"YYYY-MM-DD"}` — `day` must be today (UTC).
+
+```bash
+curl -X POST https://basilisk-seven.vercel.app/api/v1/community/boosts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": "{\"action\":\"boost\",\"unit\":\"279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b\",\"day\":\"2026-07-06\"}",
+    "signature": "<COSE_Sign1 CBOR hex from signData>",
+    "key": "<COSE_Key CBOR hex from signData>",
+    "rewardAddressHex": "e1<56 hex chars>"
+  }'
+```
+
+`201 { "ok": true, "stakeAddress": "stake1u…", "unit": "…" }` on success. `409 "Already boosted today"` if this stake address already used its daily boost (any token — one boost per wallet per day, period). `401` if the signature doesn't verify.
+
+### `GET /api/v1/community/comments/{unit}` — token discussion
+
+Latest 50 comments, newest first. Stake addresses are public on-chain data; both the full address and a short display form are returned.
+
+```bash
+curl https://basilisk-seven.vercel.app/api/v1/community/comments/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b
+```
+
+```json
+{
+  "unit": "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b",
+  "count": 1,
+  "comments": [
+    {
+      "id": 42,
+      "stakeAddress": "stake1uyabc…",
+      "stakeShort": "stake1uy…abcd",
+      "body": "Minswap pool depth looking healthy today.",
+      "createdAt": "2026-07-06T18:22:41.000Z"
+    }
+  ]
+}
+```
+
+### `POST /api/v1/community/comments/{unit}` — post a comment
+
+Signed payload shape: `{"action":"comment","unit":"<unit>","body":"1-500 chars","ts":"<ISO timestamp>"}` — `unit` must match the URL, `ts` within ±5 minutes of server time.
+
+```bash
+curl -X POST https://basilisk-seven.vercel.app/api/v1/community/comments/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": "{\"action\":\"comment\",\"unit\":\"279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b\",\"body\":\"Minswap pool depth looking healthy today.\",\"ts\":\"2026-07-06T18:22:00.000Z\"}",
+    "signature": "<COSE_Sign1 CBOR hex from signData>",
+    "key": "<COSE_Key CBOR hex from signData>",
+    "rewardAddressHex": "e1<56 hex chars>"
+  }'
+```
+
+`201` with the saved comment on success; `429` after 10 comments in a UTC day; `401` on signature failure; `400` if `ts` drifted outside the 5-minute window (re-sign and retry).
+
 ## Errors
 
 Errors are JSON with an `error` message and usually a `hint`:
@@ -230,9 +386,14 @@ Errors are JSON with an `error` message and usually a `hint`:
 
 | Status | Meaning |
 | --- | --- |
-| `400` | Bad input (malformed asset unit, empty query, unrecognized wallet input) |
-| `404` | Not found (unknown token, handle, or address) |
-| `502` | An upstream (DexScreener / Koios / CoinGecko) failed and no cached copy existed |
+| `400` | Bad input (malformed asset unit, empty query, unrecognized wallet input, bad timeframe, stale/mismatched signed payload) |
+| `401` | Wallet signature verification failed (community POST endpoints) |
+| `404` | Not found (unknown token, handle, or address; no chartable GeckoTerminal pool) |
+| `409` | Already boosted today (one free boost per stake address per UTC day) |
+| `413` | Request body too large (community POSTs are capped at 8 KB) |
+| `429` | Daily comment limit reached (10 per stake address per UTC day) |
+| `502` | An upstream (DexScreener / GeckoTerminal / Koios / CoinGecko) failed and no cached copy existed |
+| `503` | Community database not configured on this deployment |
 
 ## SDKs
 

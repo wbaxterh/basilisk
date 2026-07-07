@@ -50,6 +50,27 @@ export async function GET(req: NextRequest) {
             "ADA market snapshot + price series (?days=1..365) + optional CoinGecko cardano-ecosystem list (?ecosystem=1).",
           example: `${origin}/api/v1/market?days=1&ecosystem=1`,
         },
+        {
+          path: "/api/v1/tokens/{asset}/ohlcv",
+          method: "GET",
+          description:
+            "OHLCV candles (USD) for the token's top pool via GeckoTerminal (includes Minswap). ?tf=15m|1h|4h|1d, ?limit=1-500.",
+          example: `${origin}/api/v1/tokens/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b/ohlcv?tf=1h`,
+        },
+        {
+          path: "/api/v1/community/boosts",
+          method: "GET/POST",
+          description:
+            "Community boosts. GET ?units=a,b,c returns 24h/7d/today counts; POST casts one free boost per wallet per UTC day (CIP-30 signed payload).",
+          example: `${origin}/api/v1/community/boosts?units=279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b`,
+        },
+        {
+          path: "/api/v1/community/comments/{unit}",
+          method: "GET/POST",
+          description:
+            "Token discussion. GET lists the latest 50 comments; POST adds one (CIP-30 signed payload, 10/day per stake address).",
+          example: `${origin}/api/v1/community/comments/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b`,
+        },
       ],
       docs: `${origin}/docs`,
       mcp: `${origin}/api/mcp`,
