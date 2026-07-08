@@ -1,0 +1,35 @@
+---
+slug: v0-4-ask-basilisk
+title: "v0.4 — Ask Basilisk, the in-app AI analyst"
+date: 2026-07-07
+authors:
+  - name: Wes Huber
+    title: Founder
+    url: https://github.com/wbaxterh
+tags: [release]
+---
+
+Since v0.2 you could point Claude at our hosted MCP server and get a conversational Cardano analyst. v0.4 removes the last step: **Ask Basilisk** puts that same analyst inside the app — no MCP client, no API key, no account. Plus a round of navigation polish so the landing page, app, and docs all point at each other properly.
+
+{/* truncate */}
+
+## What's live today
+
+- **Ask Basilisk** — an in-app chat that answers questions from live screener, token, and wallet data. Under the hood it calls the **exact same six tools** the MCP server exposes (`search_tokens`, `get_screener`, `get_token`, `get_wallet`, `get_ada_price`, `get_chain_tip`) — one tool surface, four consumers (UI, [`/api/v1`](/docs/api/overview), [MCP](/docs/agents/mcp), now chat). Same data, same cache, same coverage caveats.
+- **Streaming answers with visible tool calls** — you see which data the assistant fetched, as it fetches it, over a simple NDJSON stream.
+- **Navigation polish** — the landing page, app header, and sidebar are now consistent and bidirectional: legacy links fixed, the header title takes you back home, and the sidebar footer links out to Home, Docs, and the API.
+
+## Honesty notes
+
+- **The assistant runs on a server-side Anthropic API key.** If a deployment doesn't configure one, chat shows a clear "not configured" state instead of pretending to work. There is no client-side key — ever.
+- **Rate-limited free beta** — 20 questions per IP per UTC day. LLM inference costs real money per message; the quota is what keeps this free. Shared networks (offices, VPNs) share a budget — sorry, that's the blunt edge of IP-based limits with no accounts.
+- **Answers can be wrong.** The data underneath is honestly labeled, but a language model can still misread it, overgeneralize, or hallucinate. Every answer carries the same coverage caveats as the API — and none of it is financial advice. **Verify before trading.**
+- **Chat is stateless server-side.** Your conversation history lives in your browser and is sent (capped) with each message; we persist nothing but an anonymous per-IP counter. The design is written down in [ADR-007](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/007-in-app-assistant-anthropic-api.md).
+
+## What's next
+
+- **Wallet-keyed quotas** — if IP limits prove too blunt, the CIP-30 signature identity from the community layer (ADR-006) is the natural upgrade.
+- **x402 pay-per-query** — still in development ([the honest state of x402 on Cardano](/docs/agents/x402)).
+- **Own chain ingestion (Kupmios, ADR-001)** — deeper data for the assistant to reason over.
+
+Something missing or mislabeled? [GitHub issues](https://github.com/wbaxterh/basilisk/issues) — coverage honesty is a feature, hold us to it.

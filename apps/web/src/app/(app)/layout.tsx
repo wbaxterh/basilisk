@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import ChatPanel from "../../components/chat/ChatPanel";
 import { WalletProvider } from "../../lib/wallet-context";
 
-/** App pages get the sidebar + header chrome + wallet context. */
+/** App pages get the sidebar + header chrome + wallet context + Ask Basilisk. */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <WalletProvider>
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <ChatPanel />
     </WalletProvider>
   );
 }

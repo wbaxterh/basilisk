@@ -235,14 +235,14 @@ export default function LandingClient() {
             <Feature
               title="Token analytics"
               status="live"
-              href="/tokens"
+              href="/screener"
               desc="Per-token pages: live chart, market data, pair breakdown, supply, holders. Linked straight from the screener."
               icon={IconChart}
             />
             <Feature
               title="Wallet intelligence"
               status="live"
-              href="/wallets"
+              href="/portfolio"
               desc="Look up any Cardano address — holdings, balances, and token positions. No account required."
               icon={IconWallet}
             />
@@ -620,7 +620,7 @@ function TopBar() {
           </Link>
           <div className="lp-nav-links">
             <NavLink href="/screener">Screener</NavLink>
-            <NavLink href="/tokens">Tokens</NavLink>
+            <NavLink href="/portfolio">Portfolio</NavLink>
             <NavLink href="/agents">For Agents</NavLink>
             <NavLink href="#pricing">Pricing</NavLink>
             <NavLink href="/whitepaper">Whitepaper</NavLink>

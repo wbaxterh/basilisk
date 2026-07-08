@@ -17,6 +17,7 @@ Head to **[basilisk-seven.vercel.app](https://basilisk-seven.vercel.app)**. What
 - **Discuss** — per-token comment threads, wallet-signed, no account needed
 - **Watchlist** — keep the tokens you care about one click away
 - **Look up any wallet** — `addr1...`, `stake1...`, or `$handle`: balance, rewards, delegation, and holdings with USD values where priced
+- **Ask Basilisk** — an in-app AI analyst that answers questions from live screener, token, and wallet data (rate-limited free beta; answers can be wrong — verify before trading)
 
 No account, no signup — connect a CIP-30 wallet (Lace, Eternl, Typhon, …) only when you want to boost or comment.
 
