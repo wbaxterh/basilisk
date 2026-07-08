@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { DOCS_URL } from "@/lib/site";
+
 interface NavItem {
   label: string;
   href: string;
@@ -120,14 +122,42 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer nav — back out to the landing page, docs, and API */}
       <div style={{
-        padding: "16px 20px",
+        padding: "14px 20px",
         borderTop: "1px solid var(--color-border)",
-        fontSize: 12,
-        color: "var(--color-text-muted)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
       }}>
-        Basilisk MVP
+        <Link
+          href="/"
+          style={{ fontSize: 12, color: "var(--color-text-muted)", transition: "color 120ms" }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--color-text-muted)"; }}
+        >
+          ← Home
+        </Link>
+        <a
+          href={DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 12, color: "var(--color-text-muted)", transition: "color 120ms" }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--color-text-muted)"; }}
+        >
+          Docs
+        </a>
+        <a
+          href="/api/v1"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-muted)", transition: "color 120ms" }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--color-text-muted)"; }}
+        >
+          API
+        </a>
       </div>
     </aside>
   );

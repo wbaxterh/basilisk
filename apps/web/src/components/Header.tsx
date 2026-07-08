@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useWallet } from "@/lib/wallet-context";
@@ -31,9 +32,19 @@ export default function Header() {
       padding: "0 24px",
       background: "var(--color-bg-secondary)",
     }}>
-      <div style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+      <Link
+        href="/"
+        title="Back to basilisk home"
+        style={{
+          fontSize: 13,
+          color: "var(--color-text-secondary)",
+          transition: "color 120ms",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--color-text-primary)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+      >
         Cardano Analytics Platform
-      </div>
+      </Link>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         {/* Network badge */}

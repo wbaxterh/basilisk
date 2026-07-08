@@ -11,6 +11,7 @@ Basilisk is built agent-native from day one: the same Cardano market data humans
 | --- | --- |
 | **Live today** | Hosted **MCP server** at `https://basilisk-seven.vercel.app/api/mcp` — screener, token detail, search, wallets, ADA price, chain tip as structured tools |
 | **Live today** | Free public **REST API** (`/api/v1`) — no key, no signup |
+| **Live today** | **Ask Basilisk**, the in-app assistant — consumes the exact same six tools exposed over MCP (same functions, same coverage honesty) |
 | **In development** | **x402 pay-per-query** — HTTP 402 micropayments via Masumi Network's community x402-cardano facilitator (testnet PoC stage) |
 | **In development** | **Live trades feed** — per-swap data for tokens and wallets |
 | **Research** | **Agent-to-agent settlement** — the Scout×Trader replayable demo (Request → Negotiate → Transact → Evaluate) |
