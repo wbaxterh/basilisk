@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Metadata } from "next";
 import type { ComponentProps } from "react";
+import BrandLogo from "../../components/BrandLogo";
 import { GITHUB_URL } from "../../lib/site";
 import { plan } from "./content.generated";
 import "./whitepaper.css";
@@ -37,18 +38,8 @@ export default function WhitepaperPage() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 32px",
         }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <svg width="22" height="22" viewBox="0 0 32 32" style={{ display: "inline-block", filter: "drop-shadow(0 0 8px rgba(32,235,122,0.35))" }} aria-label="Basilisk">
-              <defs>
-                <linearGradient id="basiliskGradWp" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#20EB7A" />
-                  <stop offset="100%" stopColor="#16A35A" />
-                </linearGradient>
-              </defs>
-              <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#basiliskGradWp)" />
-              <path d="M16 7 L25 16 L16 25 L7 16 Z" fill="#001A0E" />
-            </svg>
-            <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.5 }}>Basilisk</span>
+          <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+            <BrandLogo size={22} wordmarkSize={17} />
             <span style={{ fontSize: 11, color: "var(--color-text-muted)", letterSpacing: 1, marginLeft: 8, paddingLeft: 8, borderLeft: "1px solid var(--color-border)" }}>
               WHITEPAPER
             </span>
