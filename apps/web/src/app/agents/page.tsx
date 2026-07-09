@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import BrandLogo from "@/components/BrandLogo";
 import { APP_URL, DOCS_AGENTS_MCP_URL, GITHUB_URL } from "@/lib/site";
 
 const MCP_URL = `${APP_URL}/api/mcp`;
@@ -273,9 +274,8 @@ function AgentsTopBar() {
         padding: "12px 32px", gap: 16, flexWrap: "wrap",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <Logo />
-            <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.5 }}>Basilisk</span>
+          <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+            <BrandLogo size={22} wordmarkSize={17} />
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap" }}>
             <TopLink href="/dashboard">Dashboard</TopLink>
@@ -309,20 +309,6 @@ function TopLink({ href, children, external }: { href: string; children: React.R
   );
 }
 
-function Logo({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" style={{ display: "inline-block", filter: "drop-shadow(0 0 8px rgba(32,235,122,0.35))" }} aria-label="Basilisk">
-      <defs>
-        <linearGradient id="basiliskGradAgents" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#20EB7A" />
-          <stop offset="100%" stopColor="#16A35A" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#basiliskGradAgents)" />
-      <path d="M16 7 L25 16 L16 25 L7 16 Z" fill="#001A0E" />
-    </svg>
-  );
-}
 
 function PageFooter() {
   return (
@@ -332,7 +318,7 @@ function PageFooter() {
         display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Logo />
+          <BrandLogo size={22} wordmark={false} />
           <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
             Basilisk — Cardano analytics for humans & agents
           </span>
