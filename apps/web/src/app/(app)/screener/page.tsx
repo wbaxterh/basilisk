@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactDOM from "react-dom";
 import type { ScreenerToken, ScreenerResponse, SearchResponse } from "../../../lib/dex-data";
+
+// Next's app router ships React canary, where ReactDOM.preload exists at
+// runtime — @types/react-dom@18 just doesn't declare it yet.
+const preloadFetch = (
+  ReactDOM as unknown as {
+    preload?: (href: string, opts: { as: string; crossOrigin?: string }) => void;
+  }
+).preload;
 
 type Tab = "top" | "favorites" | "trending" | "gainers" | "losers" | "volume" | "new";
 type SortKey =
@@ -128,6 +137,10 @@ const matches = (t: ScreenerToken, q: string) =>
 /* ─── Page ───────────────────────────────────────────────── */
 
 export default function ScreenerPage() {
+  // Warm the token list: emits <link rel="preload" as="fetch"> in the SSR
+  // head so the request starts before hydration + the client effect run.
+  preloadFetch?.("/api/v1/tokens", { as: "fetch", crossOrigin: "anonymous" });
+
   const router = useRouter();
   const [tokens, setTokens] = useState<ScreenerToken[]>([]);
   const [status, setStatus] = useState<Status>("loading");

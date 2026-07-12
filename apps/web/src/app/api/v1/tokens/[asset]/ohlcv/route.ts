@@ -45,6 +45,7 @@ export async function GET(
   const quoteParam = (req.nextUrl.searchParams.get("quote") ?? "usd").toLowerCase();
   const poolParam = req.nextUrl.searchParams.get("pool");
   const limitParam = req.nextUrl.searchParams.get("limit");
+  const beforeParam = req.nextUrl.searchParams.get("before");
 
   try {
     if (!/^[0-9a-f]{56,120}$/.test(unit)) {
@@ -64,6 +65,19 @@ export async function GET(
     const limit = limitParam ? parseInt(limitParam, 10) : 300;
     if (!Number.isFinite(limit) || limit < 1 || limit > 1000) {
       throw new ApiError(400, "Invalid limit", "limit must be 1-1000.");
+    }
+    // Optional history pagination: candles strictly before this unix-seconds
+    // timestamp (GT before_timestamp). Historical pages are near-immutable,
+    // so they cache separately (1 h server-side, longer at the edge).
+    let before: number | undefined;
+    if (beforeParam != null) {
+      if (!/^\d{1,12}$/.test(beforeParam)) {
+        throw new ApiError(400, "Invalid before", "before must be a unix timestamp in seconds.");
+      }
+      before = parseInt(beforeParam, 10);
+      if (!Number.isFinite(before) || before < 1_000_000_000 || before > 4_102_444_800) {
+        throw new ApiError(400, "Invalid before", "before must be unix seconds (2001-2100).");
+      }
     }
 
     // Resolve which pool to chart: explicit ?pool= must belong to this
@@ -91,7 +105,7 @@ export async function GET(
     // getOhlcv always fetches limit=1000 upstream (single cache key per
     // pool+tf+currency); the client limit only trims the tail we return.
     const currency: GeckoCurrency = quoteParam === "ada" ? "token" : "usd";
-    const ohlcv = await getOhlcv(poolAddress, tf as GeckoTimeframe, limit, currency);
+    const ohlcv = await getOhlcv(poolAddress, tf as GeckoTimeframe, limit, currency, before);
     if (ohlcv.candles.length === 0) {
       return NextResponse.json(
         {
@@ -102,7 +116,8 @@ export async function GET(
       );
     }
 
-    const sMaxage = EDGE_TTL[tf] ?? 120;
+    // Historical pages are immutable — cache them a full hour at the edge.
+    const sMaxage = before != null ? 3600 : (EDGE_TTL[tf] ?? 120);
     return NextResponse.json(
       {
         asset: unit,

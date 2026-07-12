@@ -37,6 +37,17 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 
+import {
+  createMapper,
+  hitTest,
+  loadDrawings,
+  newDrawingId,
+  renderDrawings,
+  saveDrawings,
+  type DraftDrawing,
+  type Drawing,
+} from "./chart-drawings";
+
 // ---------------------------------------------------------------------------
 // Data contract (mirrors /api/v1/tokens/[asset]/ohlcv)
 // ---------------------------------------------------------------------------
@@ -86,6 +97,48 @@ const TIMEFRAMES: Array<{ id: Timeframe; label: string }> = [
   { id: "1d", label: "1D" },
   { id: "1w", label: "1W" },
 ];
+
+/** Nominal bar interval per timeframe (drawing-layer time extrapolation). */
+const TF_SECONDS: Record<Timeframe, number> = {
+  "1m": 60,
+  "5m": 300,
+  "15m": 900,
+  "1h": 3_600,
+  "4h": 14_400,
+  "12h": 43_200,
+  "1d": 86_400,
+  "1w": 604_800,
+};
+
+type DrawTool = "trend" | "ray" | "hline" | "eraser";
+
+// Zoom-adaptive timeframe HINT (never auto-switches under the user): shown
+// when the visible logical span implies >900 bars (suggest coarser) or the
+// user is pinned tight on a coarse tf (<12 bars visible — suggest finer).
+// Dismissals stick per browser session, per direction, so no hint spam.
+interface TfHint {
+  dir: "coarser" | "finer";
+  tf: Timeframe;
+}
+const HINT_MAX_BARS = 900;
+const HINT_MIN_BARS = 12;
+const TF_HINT_DISMISS_PREFIX = "basilisk.chart.tfhint.";
+
+function tfHintDismissed(dir: TfHint["dir"]): boolean {
+  try {
+    return sessionStorage.getItem(TF_HINT_DISMISS_PREFIX + dir) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissTfHintForSession(dir: TfHint["dir"]): void {
+  try {
+    sessionStorage.setItem(TF_HINT_DISMISS_PREFIX + dir, "1");
+  } catch {
+    /* hint may reappear — harmless */
+  }
+}
 
 const INDICATOR_DEFS: Array<{
   id: IndicatorId;
@@ -324,6 +377,63 @@ function ChevronDown({ size = 12 }: { size?: number }) {
   );
 }
 
+function TrendlineIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <circle cx="5" cy="18" r="2" />
+      <circle cx="19" cy="6" r="2" />
+      <path d="M6.5 16.5l11-9" />
+    </svg>
+  );
+}
+
+function RayIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <circle cx="5" cy="17" r="2" />
+      <path d="M6.5 15.5L21 5.5" />
+      <path d="M16 5l5 .4-1.5 4.6" />
+    </svg>
+  );
+}
+
+function HLineIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M3 12h18" />
+      <circle cx="12" cy="12" r="2.4" />
+    </svg>
+  );
+}
+
+function EraserIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M7 20h13" />
+      <path d="M6 15l8.5-8.5a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 20H7l-1-1a2.5 2.5 0 0 1 0-4z" />
+      <path d="M11 9.5l4.5 4.5" />
+    </svg>
+  );
+}
+
+function TrashIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="M6 7l1 13h10l1-13" />
+      <path d="M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+function XIcon({ size = 10 }: { size?: number }) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M5 5l14 14M19 5L5 19" />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -345,13 +455,20 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
   const [data, setData] = useState<OhlcvResponse | null>(null);
   const [emptyHint, setEmptyHint] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [hovered, setHovered] = useState<OhlcvCandle | null>(null);
+  const [hovered, setHovered] = useState<{
+    candle: OhlcvCandle;
+    prevClose: number | null;
+  } | null>(null);
   const [supply, setSupply] = useState<number | null>(null);
   const [liveCandle, setLiveCandle] = useState<OhlcvCandle | null>(null);
   const [rangeDelta, setRangeDelta] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fsFallback, setFsFallback] = useState(false);
   const [menuOpen, setMenuOpen] = useState<"pool" | "indicators" | null>(null);
+  const [autoOff, setAutoOff] = useState(false); // price axis manually scaled
+  const [tfHint, setTfHint] = useState<TfHint | null>(null);
+  const [activeTool, setActiveTool] = useState<DrawTool | null>(null);
+  const [epoch, setEpoch] = useState(0); // bumps when the chart is (re)built
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -361,6 +478,25 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
   const lastBarTimeRef = useRef(0);
   const scaleRef = useRef<ScaleMode>(prefs.scale);
   scaleRef.current = prefs.scale;
+
+  // History pagination + merged-candle bookkeeping (mutated by prepends so
+  // the chart is NOT rebuilt — series.setData keeps pan gestures alive).
+  const mergedRawRef = useRef<OhlcvCandle[]>([]);
+  const mergedDisplayRef = useRef<OhlcvCandle[]>([]);
+  const indexByTimeRef = useRef<Map<number, number>>(new Map());
+  const historyBusyRef = useRef(false);
+  const dataFloorRef = useRef(false);
+  const userInteractedRef = useRef(false);
+  const tfSecondsRef = useRef(3_600);
+
+  // Drawing layer (canvas overlay; drawings persist per asset).
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const drawingsRef = useRef<Drawing[]>([]);
+  const draftRef = useRef<DraftDrawing | null>(null);
+  const hoverIdRef = useRef<string | null>(null);
+  const activeToolRef = useRef<DrawTool | null>(null);
+  activeToolRef.current = activeTool;
+  const redrawRef = useRef<() => void>(() => undefined);
 
   const updatePrefs = (patch: Partial<ChartPrefs>) => setPrefs((p) => ({ ...p, ...patch }));
 
@@ -372,6 +508,8 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
   const unitPrefix = data?.quote === "ADA" ? "₳" : "$";
   const fmtVal = (n: number | null | undefined) =>
     effectiveMode === "mcap" ? fmtCompact(n, "$") : fmtWithUnit(n, unitPrefix);
+  const fmtValRef = useRef(fmtVal);
+  fmtValRef.current = fmtVal; // overlay canvas reads via ref (no re-subscribe)
 
   // -- prefs: load once, persist on change --------------------------------
   useEffect(() => {
@@ -524,6 +662,9 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
       rightPriceScale: {
         borderColor: AXIS_BORDER,
         mode: scaleRef.current === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
+        // Zoom must ADAPT the price scale, never shrink candles inside the
+        // box: autoscale is on and gets re-applied on every range change.
+        autoScale: true,
       },
     });
 
@@ -578,6 +719,11 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
     }
 
     // Indicator overlays (client-side EMA/SMA over display-unit closes).
+    // Kept in a list so history prepends can recompute them via setData.
+    const indicatorSeries: Array<{
+      def: (typeof INDICATOR_DEFS)[number];
+      api: ISeriesApi<"Line">;
+    }> = [];
     for (const def of INDICATOR_DEFS) {
       if (!prefs.indicators.includes(def.id)) continue;
       const points = def.kind === "ema" ? emaPoints(candles, def.period) : smaPoints(candles, def.period);
@@ -591,6 +737,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
         priceFormat,
       });
       line.setData(points);
+      indicatorSeries.push({ def, api: line });
     }
 
     // Volume histogram in its own bottom pane, tinted by candle direction.
@@ -619,8 +766,21 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
 
     chart.timeScale().fitContent();
 
+    // Merged-candle bookkeeping (grows via history prepends without rebuild).
+    mergedRawRef.current = data.candles;
+    mergedDisplayRef.current = candles;
+    const rebuildIndex = () => {
+      const map = new Map<number, number>();
+      mergedDisplayRef.current.forEach((c, i) => map.set(c.time, i));
+      indexByTimeRef.current = map;
+    };
+    rebuildIndex();
+    historyBusyRef.current = false;
+    dataFloorRef.current = false;
+    userInteractedRef.current = false;
+    tfSecondsRef.current = TF_SECONDS[data.tf as Timeframe] ?? 3_600;
+
     // Crosshair → O/H/L/C/Vol legend readout (idle = last candle).
-    const byTime = new Map<number, OhlcvCandle>(candles.map((c) => [c.time, c]));
     let disposed = false;
     const onCrosshairMove = (param: MouseEventParams<Time>) => {
       if (disposed) return;
@@ -628,44 +788,204 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
         setHovered(null);
         return;
       }
-      setHovered(byTime.get(param.time) ?? null);
+      const idx = indexByTimeRef.current.get(param.time);
+      const arr = mergedDisplayRef.current;
+      setHovered(
+        idx == null
+          ? null
+          : { candle: arr[idx], prevClose: idx > 0 ? arr[idx - 1].close : null }
+      );
     };
     chart.subscribeCrosshairMove(onCrosshairMove);
 
-    // Visible-range delta chip: first vs last visible close, throttled 250ms.
+    // Scroll-back history: fetch the page before the earliest loaded candle
+    // once the user nears the left edge (<30 bars of runway), prepend via
+    // setData, and restore the visible range so the view doesn't jump.
+    const loadOlder = async () => {
+      try {
+        const raw = mergedRawRef.current;
+        if (raw.length === 0) return;
+        const beforeTs = raw[0].time;
+        const qs = new URLSearchParams({
+          tf: data.tf,
+          quote: data.quote === "ADA" ? "ada" : "usd",
+          pool: data.pool.address,
+          limit: "1000",
+          before: String(beforeTs),
+        });
+        const res = await fetch(
+          `/api/v1/tokens/${encodeURIComponent(asset.toLowerCase())}/ohlcv?${qs}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) {
+          if (res.status === 404) dataFloorRef.current = true; // no older data
+          return;
+        }
+        const body = (await res.json().catch(() => null)) as OhlcvResponse | null;
+        const page = body?.candles ?? [];
+        if (page.length < 10) dataFloorRef.current = true; // near the floor
+        const older = page.filter((c) => c.time < beforeTs);
+        if (older.length === 0) {
+          dataFloorRef.current = true;
+          return;
+        }
+        if (disposed) return;
+
+        const mergedRaw = [...older, ...raw];
+        const mergedDisplay =
+          factor === 1
+            ? mergedRaw
+            : mergedRaw.map((c) => ({
+                ...c,
+                open: c.open * factor,
+                high: c.high * factor,
+                low: c.low * factor,
+                close: c.close * factor,
+              }));
+
+        const visRange = chart.timeScale().getVisibleRange();
+        if (main.kind === "candles") {
+          main.api.setData(
+            mergedDisplay.map<CandlestickData<Time>>((c) => ({
+              time: c.time as UTCTimestamp,
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+            }))
+          );
+        } else {
+          main.api.setData(
+            mergedDisplay.map<LineData<Time>>((c) => ({
+              time: c.time as UTCTimestamp,
+              value: c.close,
+            }))
+          );
+        }
+        volumeSeries.setData(
+          mergedDisplay.map<HistogramData<Time>>((c) => ({
+            time: c.time as UTCTimestamp,
+            value: c.volume,
+            color: c.close >= c.open ? UP_SOFT : DOWN_SOFT,
+          }))
+        );
+        // Indicators recompute over the full merged window.
+        for (const { def, api } of indicatorSeries) {
+          api.setData(
+            def.kind === "ema"
+              ? emaPoints(mergedDisplay, def.period)
+              : smaPoints(mergedDisplay, def.period)
+          );
+        }
+        if (visRange) chart.timeScale().setVisibleRange(visRange);
+
+        mergedRawRef.current = mergedRaw;
+        mergedDisplayRef.current = mergedDisplay;
+        rebuildIndex();
+        redrawRef.current(); // drawings overlay tracks the new coordinates
+      } catch {
+        /* transient history-fetch failure — next scroll retries */
+      } finally {
+        historyBusyRef.current = false;
+      }
+    };
+
+    const maybeLoadHistory = (range: LogicalRange | null) => {
+      if (!range || disposed) return;
+      // Only after a real user interaction — fitContent on load leaves 0
+      // bars to the left, which must not auto-burn a GeckoTerminal call.
+      if (!userInteractedRef.current || historyBusyRef.current || dataFloorRef.current) return;
+      const info = main.api.barsInLogicalRange(range);
+      if (!info || info.barsBefore >= 30) return;
+      historyBusyRef.current = true;
+      void loadOlder();
+    };
+
+    // Visible-range delta chip + tf hint: throttled 250ms.
     let latestRange: LogicalRange | null = chart.timeScale().getVisibleLogicalRange();
     let rangeTimer: ReturnType<typeof setTimeout> | null = null;
     const computeDelta = () => {
       rangeTimer = null;
       if (disposed) return;
       const r = latestRange;
+      const arr = mergedDisplayRef.current;
       if (!r) {
         setRangeDelta(null);
         return;
       }
       const from = Math.max(0, Math.ceil(r.from));
-      const to = Math.min(candles.length - 1, Math.floor(r.to));
-      if (to <= from || !(candles[from].close > 0)) {
+      const to = Math.min(arr.length - 1, Math.floor(r.to));
+      if (to <= from || !(arr[from].close > 0)) {
         setRangeDelta(null);
-        return;
+      } else {
+        setRangeDelta((arr[to].close / arr[from].close - 1) * 100);
       }
-      setRangeDelta((candles[to].close / candles[from].close - 1) * 100);
+
+      // Timeframe hint (suggestion only — never switches automatically).
+      const span = r.to - r.from;
+      const tfIdx = TIMEFRAMES.findIndex((t) => t.id === data.tf);
+      let hint: TfHint | null = null;
+      if (span > HINT_MAX_BARS && tfIdx >= 0 && tfIdx < TIMEFRAMES.length - 1) {
+        if (!tfHintDismissed("coarser")) hint = { dir: "coarser", tf: TIMEFRAMES[tfIdx + 1].id };
+      } else if (span < HINT_MIN_BARS && arr.length > 30 && tfIdx > 0) {
+        if (!tfHintDismissed("finer")) hint = { dir: "finer", tf: TIMEFRAMES[tfIdx - 1].id };
+      }
+      setTfHint((prev) =>
+        prev?.dir === hint?.dir && prev?.tf === hint?.tf ? prev : hint
+      );
     };
     const onRangeChange = (range: LogicalRange | null) => {
       latestRange = range;
       if (rangeTimer == null) rangeTimer = setTimeout(computeDelta, 250);
+      // LWC silently sets autoScale=false after a price-axis drag; any
+      // horizontal pan/zoom re-engages it so candles always fill the pane.
+      const ps = chart.priceScale("right");
+      if (!ps.options().autoScale) {
+        ps.applyOptions({ autoScale: true });
+        setAutoOff(false);
+      }
+      maybeLoadHistory(range);
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRangeChange);
     onRangeChange(latestRange);
+
+    // Detect manual price-axis scaling (shows the AUTO reset chip) and mark
+    // real interactions (gates the history auto-fetch). Double-click on the
+    // price axis restores autoscale.
+    const markInteracted = () => {
+      userInteractedRef.current = true;
+    };
+    const checkAutoScale = () => {
+      window.setTimeout(() => {
+        if (!disposed) setAutoOff(!chart.priceScale("right").options().autoScale);
+      }, 0);
+    };
+    const onAxisDblClick = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const psW = chart.priceScale("right").width();
+      if (e.clientX - rect.left >= rect.width - psW) {
+        chart.priceScale("right").applyOptions({ autoScale: true });
+        setAutoOff(false);
+      }
+    };
+    container.addEventListener("wheel", markInteracted, { passive: true });
+    container.addEventListener("pointerdown", markInteracted);
+    container.addEventListener("pointerup", checkAutoScale);
+    container.addEventListener("dblclick", onAxisDblClick);
 
     chartRef.current = chart;
     mainSeriesRef.current = main;
     volSeriesRef.current = volumeSeries;
     lastBarTimeRef.current = candles[candles.length - 1].time;
+    setEpoch((e) => e + 1); // lets the drawings overlay (re)attach
 
     return () => {
       disposed = true;
       if (rangeTimer != null) clearTimeout(rangeTimer);
+      container.removeEventListener("wheel", markInteracted);
+      container.removeEventListener("pointerdown", markInteracted);
+      container.removeEventListener("pointerup", checkAutoScale);
+      container.removeEventListener("dblclick", onAxisDblClick);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       chart.unsubscribeCrosshairMove(onCrosshairMove);
       chart.remove();
@@ -673,8 +993,10 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
       mainSeriesRef.current = null;
       volSeriesRef.current = null;
       setHovered(null);
+      setTfHint(null);
+      setAutoOff(false);
     };
-  }, [data, displayCandles, factor, prefs.style, prefs.indicators, chartH]);
+  }, [data, displayCandles, factor, prefs.style, prefs.indicators, chartH, asset]);
 
   // -- log/linear without a rebuild ----------------------------------------
   useEffect(() => {
@@ -769,6 +1091,191 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
     return () => cancelAnimationFrame(raf);
   }, [isFullscreen]);
 
+  // -- drawings: restore per-asset from localStorage ------------------------
+  useEffect(() => {
+    drawingsRef.current = loadDrawings(asset);
+    draftRef.current = null;
+    hoverIdRef.current = null;
+    redrawRef.current();
+  }, [asset]);
+
+  // -- drawings: canvas overlay wired to the current chart instance ---------
+  // Reattaches whenever the chart is rebuilt (epoch bump). Redraws are
+  // rAF-throttled and triggered by range changes, crosshair moves, resizes
+  // and history prepends. The canvas only captures pointer events while a
+  // tool is active (see JSX), so chart pan/zoom is never blocked.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const main = mainSeriesRef.current;
+    const canvas = overlayRef.current;
+    const container = containerRef.current;
+    if (epoch === 0 || !chart || !main || !canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let disposed = false;
+    let raf = 0;
+
+    const buildMapper = () =>
+      createMapper(
+        chart.timeScale(),
+        main.api,
+        mergedRawRef.current.map((c) => c.time),
+        tfSecondsRef.current
+      );
+    // Drawings live on the MAIN pane only — clip to it (volume pane below).
+    const paneArea = () => ({
+      width: Math.max(0, container.clientWidth - chart.priceScale("right").width()),
+      height: chart.paneSize(0).height,
+    });
+
+    const redraw = () => {
+      raf = 0;
+      if (disposed) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      let area: { width: number; height: number };
+      try {
+        area = paneArea();
+      } catch {
+        return; // chart mid-teardown
+      }
+      renderDrawings(ctx, area, drawingsRef.current, buildMapper(), {
+        draft: draftRef.current,
+        hoveredId: hoverIdRef.current,
+        eraserActive: activeToolRef.current === "eraser",
+        formatPrice: (p) => fmtValRef.current(p),
+      });
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(redraw);
+    };
+    redrawRef.current = schedule;
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(schedule);
+    chart.subscribeCrosshairMove(schedule);
+    const ro = new ResizeObserver(schedule);
+    ro.observe(container);
+    schedule();
+
+    const localXY = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    const commit = (d: Drawing) => {
+      drawingsRef.current = [...drawingsRef.current, d];
+      saveDrawings(asset, drawingsRef.current);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      const tool = activeToolRef.current;
+      if (!tool || e.button !== 0) return;
+      const { x, y } = localXY(e);
+      const mapper = buildMapper();
+      if (tool === "eraser") {
+        const id = hitTest(drawingsRef.current, mapper, paneArea(), x, y, 6);
+        if (id) {
+          drawingsRef.current = drawingsRef.current.filter((d) => d.id !== id);
+          saveDrawings(asset, drawingsRef.current);
+          hoverIdRef.current = null;
+          schedule();
+        }
+        return;
+      }
+      const time = mapper.xToTime(x);
+      const price = mapper.yToPrice(y);
+      if (time == null || price == null) return;
+      if (tool === "hline") {
+        commit({ id: newDrawingId(), type: "hline", points: [{ time, price }] });
+        schedule();
+        return;
+      }
+      const draft = draftRef.current;
+      if (!draft) {
+        draftRef.current = { type: tool, start: { time, price }, cursor: { x, y } };
+      } else {
+        commit({
+          id: newDrawingId(),
+          type: draft.type,
+          points: [draft.start, { time, price }],
+        });
+        draftRef.current = null;
+      }
+      schedule();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      const tool = activeToolRef.current;
+      if (!tool) return;
+      const { x, y } = localXY(e);
+      if (draftRef.current) {
+        draftRef.current = { ...draftRef.current, cursor: { x, y } };
+        schedule();
+      } else if (tool === "eraser") {
+        const id = hitTest(drawingsRef.current, buildMapper(), paneArea(), x, y, 6);
+        if (id !== hoverIdRef.current) {
+          hoverIdRef.current = id;
+          schedule();
+        }
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (draftRef.current) {
+        draftRef.current = null; // cancel the in-progress drawing
+        schedule();
+      } else if (activeToolRef.current) {
+        setActiveTool(null);
+      }
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      disposed = true;
+      if (raf) cancelAnimationFrame(raf);
+      ro.disconnect();
+      redrawRef.current = () => undefined;
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("keydown", onKeyDown);
+      try {
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(schedule);
+        chart.unsubscribeCrosshairMove(schedule);
+      } catch {
+        /* chart already disposed by the rebuild */
+      }
+    };
+  }, [epoch, asset]);
+
+  const selectTool = (tool: DrawTool) => {
+    draftRef.current = null;
+    hoverIdRef.current = null;
+    setActiveTool((cur) => (cur === tool ? null : tool));
+    redrawRef.current();
+  };
+
+  const clearAllDrawings = () => {
+    const n = drawingsRef.current.length;
+    if (n === 0) return;
+    if (!window.confirm(`Remove all ${n} drawing${n === 1 ? "" : "s"} for this token?`)) return;
+    drawingsRef.current = [];
+    saveDrawings(asset, []);
+    draftRef.current = null;
+    hoverIdRef.current = null;
+    redrawRef.current();
+  };
+
   const toggleFullscreen = () => {
     if (!isFullscreen) {
       const el = sectionRef.current;
@@ -812,10 +1319,18 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
   }, [liveCandle, factor]);
 
   const legendCandle =
-    hovered ?? liveDisplay ?? (displayCandles ? displayCandles[displayCandles.length - 1] : null);
+    hovered?.candle ??
+    liveDisplay ??
+    (displayCandles ? displayCandles[displayCandles.length - 1] : null);
 
   let closeChangePct: number | null = null;
-  if (legendCandle && displayCandles && displayCandles.length > 1) {
+  if (hovered) {
+    // Prev close resolved against the MERGED window (history prepends
+    // included) by the crosshair handler, so old candles stay correct.
+    if (hovered.prevClose != null && hovered.prevClose > 0) {
+      closeChangePct = (hovered.candle.close / hovered.prevClose - 1) * 100;
+    }
+  } else if (legendCandle && displayCandles && displayCandles.length > 1) {
     const idx = displayCandles.findIndex((c) => c.time === legendCandle.time);
     const prev =
       idx > 0
@@ -1301,12 +1816,189 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
           border: "1px solid var(--color-border-soft)",
           borderRadius: 6,
           overflow: "hidden",
+          display: "flex",
+          alignItems: "stretch",
         }}
       >
         {status === "ready" && data ? (
-          <div ref={containerRef} style={{ width: "100%", height: chartH }} />
+          <>
+            {/* Drawing toolbar — vertical, left edge of the chart card */}
+            <div
+              role="toolbar"
+              aria-label="Drawing tools"
+              aria-orientation="vertical"
+              style={{
+                width: 30,
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+                padding: "8px 0",
+                borderRight: "1px solid var(--color-border-soft)",
+              }}
+            >
+              <ToolButton
+                active={activeTool === "trend"}
+                onClick={() => selectTool("trend")}
+                title="Trendline — click two points (Esc cancels)"
+                ariaLabel="Trendline tool"
+              >
+                <TrendlineIcon />
+              </ToolButton>
+              <ToolButton
+                active={activeTool === "ray"}
+                onClick={() => selectTool("ray")}
+                title="Ray — click two points, extends right (Esc cancels)"
+                ariaLabel="Ray tool"
+              >
+                <RayIcon />
+              </ToolButton>
+              <ToolButton
+                active={activeTool === "hline"}
+                onClick={() => selectTool("hline")}
+                title="Horizontal line — one click, shows the price"
+                ariaLabel="Horizontal line tool"
+              >
+                <HLineIcon />
+              </ToolButton>
+              <ToolButton
+                active={activeTool === "eraser"}
+                onClick={() => selectTool("eraser")}
+                title="Eraser — click a drawing to delete it"
+                ariaLabel="Eraser tool"
+              >
+                <EraserIcon />
+              </ToolButton>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 16,
+                  height: 1,
+                  background: "var(--color-border-soft)",
+                  margin: "2px 0",
+                  flexShrink: 0,
+                }}
+              />
+              <ToolButton
+                active={false}
+                onClick={clearAllDrawings}
+                title="Clear all drawings for this token"
+                ariaLabel="Clear all drawings"
+              >
+                <TrashIcon />
+              </ToolButton>
+            </div>
+
+            <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+              <div ref={containerRef} style={{ width: "100%", height: chartH }} />
+              {/* Drawing overlay: only intercepts the pointer in draw mode */}
+              <canvas
+                ref={overlayRef}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  zIndex: 2,
+                  pointerEvents: activeTool ? "auto" : "none",
+                  cursor:
+                    activeTool === "eraser" ? "pointer" : activeTool ? "crosshair" : "default",
+                }}
+              />
+              {tfHint ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    left: 8,
+                    zIndex: 3,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "3px 5px 3px 10px",
+                    borderRadius: 999,
+                    border: "1px solid var(--color-border)",
+                    background: "rgba(17, 17, 18, 0.92)",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      updatePrefs({ tf: tfHint.tf });
+                      setTfHint(null);
+                    }}
+                    style={{
+                      background: "transparent",
+                      color: "var(--color-brand)",
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      letterSpacing: 0.3,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Switch to {TIMEFRAMES.find((t) => t.id === tfHint.tf)?.label ?? tfHint.tf} for
+                    this range →
+                  </button>
+                  <button
+                    aria-label="Dismiss timeframe hint"
+                    onClick={() => {
+                      dismissTfHintForSession(tfHint.dir);
+                      setTfHint(null);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
+                      borderRadius: 999,
+                      background: "transparent",
+                      color: "var(--color-text-muted)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <XIcon />
+                  </button>
+                </span>
+              ) : null}
+              {autoOff ? (
+                <button
+                  onClick={() => {
+                    const ch = chartRef.current;
+                    if (ch) {
+                      ch.priceScale("right").applyOptions({ autoScale: true });
+                      ch.timeScale().fitContent();
+                    }
+                    setAutoOff(false);
+                  }}
+                  title="Price axis was scaled manually — restore auto-scaling and fit the data (or double-click the price axis)"
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    zIndex: 3,
+                    padding: "3px 9px",
+                    borderRadius: 999,
+                    border: "1px solid var(--color-brand-dim)",
+                    background: "var(--color-brand-soft)",
+                    color: "var(--color-brand)",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: 0.8,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  AUTO
+                </button>
+              ) : null}
+            </div>
+          </>
         ) : status === "loading" ? (
-          <div style={{ padding: 10 }} aria-busy="true" aria-label="Loading chart">
+          <div style={{ padding: 10, flex: 1, minWidth: 0 }} aria-busy="true" aria-label="Loading chart">
             <span
               className="lp-skeleton"
               style={{ display: "block", width: "100%", height: chartH - 20, borderRadius: 4 }}
@@ -1418,6 +2110,46 @@ function Pill({
   );
 }
 
+/** 24×24 stroke-icon button for the vertical drawing toolbar (30px rail). */
+function ToolButton({
+  active,
+  onClick,
+  title,
+  ariaLabel,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={ariaLabel}
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        background: active ? "var(--color-brand-soft)" : "transparent",
+        color: active ? "var(--color-brand)" : "var(--color-text-muted)",
+        border: `1px solid ${active ? "var(--color-brand-dim)" : "transparent"}`,
+        cursor: "pointer",
+        transition: "color 120ms, background 120ms, border-color 120ms",
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Divider() {
   return (
     <span
@@ -1462,6 +2194,8 @@ function StateBlock({
     <div
       style={{
         height,
+        flex: 1,
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

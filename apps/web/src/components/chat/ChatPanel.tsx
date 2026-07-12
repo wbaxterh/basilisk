@@ -200,11 +200,13 @@ export default function ChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const restoredRef = useRef(false);
 
-  // Restore transcript after mount (sessionStorage is browser-only).
+  // Restore transcript lazily on first open — the launcher mounts on every
+  // page, so closed panels should do zero storage/parse work at load time.
   useEffect(() => {
+    if (!open || restoredRef.current) return;
     setMessages(loadStored());
     restoredRef.current = true;
-  }, []);
+  }, [open]);
 
   // Persist on change.
   useEffect(() => {
@@ -348,8 +350,6 @@ export default function ChatPanel() {
 
   return (
     <>
-      <style>{`@keyframes basiliskChatPulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }`}</style>
-
       {/* Launcher */}
       <button
         type="button"
@@ -382,6 +382,8 @@ export default function ChatPanel() {
 
       {/* Panel */}
       {open && (
+        <>
+        <style>{`@keyframes basiliskChatPulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }`}</style>
         <div
           role="dialog"
           aria-label="Ask Basilisk"
@@ -694,6 +696,7 @@ export default function ChatPanel() {
             </div>
           </div>
         </div>
+        </>
       )}
     </>
   );

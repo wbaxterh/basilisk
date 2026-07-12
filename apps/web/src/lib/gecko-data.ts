@@ -404,6 +404,9 @@ function parseOhlcvRows(rows: number[][]): Candle[] {
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
+/** Historical (before_timestamp) pages barely change — cache them 1 h. */
+const OHLCV_HISTORY_TTL = 3_600_000;
+
 /**
  * Candles for a pool (bare address hex, NOT "cardano_"-prefixed).
  * GT shape: {data:{attributes:{ohlcv_list:[[ts,o,h,l,c,volUsd],...]}},
@@ -412,22 +415,35 @@ function parseOhlcvRows(rows: number[][]): Candle[] {
  *
  * Upstream limit is ALWAYS 1000 so there is exactly one cache entry per
  * pool+tf+currency; `limit` only slices the tail of the cached window.
+ *
+ * `beforeTs` (unix seconds) pages BACKWARDS via GT's before_timestamp param
+ * for infinite scroll-back: each page gets its own cache key suffix with a
+ * 1 h TTL (historical candles are effectively immutable). Omitting it keeps
+ * the exact pre-existing key/TTL/behavior for the live window.
  */
 export async function getOhlcv(
   poolAddress: string,
   tf: GeckoTimeframe,
   limit = 300,
-  currency: GeckoCurrency = "usd"
+  currency: GeckoCurrency = "usd",
+  beforeTs?: number
 ): Promise<OhlcvResult> {
   const pool = stripNetworkPrefix(poolAddress.toLowerCase());
   const cappedLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
   const { path, aggregate } = TF_MAP[tf === "1w" ? "1d" : tf];
-  const full = await cached(`gt:ohlcv:${pool}:${tf}:${currency}`, OHLCV_TTL[tf], async () => {
+  const before = beforeTs != null && Number.isFinite(beforeTs) ? Math.floor(beforeTs) : null;
+  const cacheKey =
+    before != null
+      ? `gt:ohlcv:${pool}:${tf}:${currency}:before:${before}`
+      : `gt:ohlcv:${pool}:${tf}:${currency}`;
+  const ttl = before != null ? OHLCV_HISTORY_TTL : OHLCV_TTL[tf];
+  const full = await cached(cacheKey, ttl, async () => {
+    const beforeQs = before != null ? `&before_timestamp=${before}` : "";
     const data = await gtFetch<{
       data: { attributes: { ohlcv_list: number[][] } };
       meta?: { base?: { symbol?: string }; quote?: { symbol?: string } };
     }>(
-      `/networks/cardano/pools/${pool}/ohlcv/${path}?aggregate=${aggregate}&limit=1000&currency=${currency}`
+      `/networks/cardano/pools/${pool}/ohlcv/${path}?aggregate=${aggregate}&limit=1000${beforeQs}&currency=${currency}`
     );
     const daily = parseOhlcvRows(data.data?.attributes?.ohlcv_list ?? []);
     const candles = tf === "1w" ? aggregateWeekly(daily) : daily;
