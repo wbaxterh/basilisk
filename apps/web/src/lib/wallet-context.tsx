@@ -157,6 +157,51 @@ function WalletMark({ icon, name }: { icon?: string; name: string }) {
   );
 }
 
+/** Install link row for a canonical wallet — shared by the zero-wallet
+ * state and the "More wallets" section under detected wallets. */
+function InstallRow({ homepage, displayName }: { homepage: string; displayName: string }) {
+  return (
+    <a
+      href={homepage}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 10px",
+        marginBottom: 6,
+        borderRadius: 6,
+        fontSize: 13,
+        color: "#FFFFFF",
+        textDecoration: "none",
+        background: "#0A0A0B",
+        border: "1px solid #1A1A20",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.background = "#1A1A1D";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLAnchorElement).style.background = "#0A0A0B";
+      }}
+    >
+      <WalletMark name={displayName} />
+      <span style={{ flex: 1 }}>{displayName}</span>
+      <span
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: "1px",
+          fontWeight: 700,
+          color: "#20EB7A",
+        }}
+      >
+        Install
+      </span>
+    </a>
+  );
+}
+
 /** True for CIP-30 "user declined" shapes (DataSignError code 3 et al). */
 function isUserRejection(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
@@ -425,45 +470,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                   Install a CIP-30 browser wallet, then reload this page.
                 </div>
                 {CANONICAL_WALLETS.slice(0, 4).map((w) => (
-                  <a
-                    key={w.key}
-                    href={w.homepage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "8px 10px",
-                      marginBottom: 6,
-                      borderRadius: 6,
-                      fontSize: 13,
-                      color: "#FFFFFF",
-                      textDecoration: "none",
-                      background: "#0A0A0B",
-                      border: "1px solid #1A1A20",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLAnchorElement).style.background = "#1A1A1D";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLAnchorElement).style.background = "#0A0A0B";
-                    }}
-                  >
-                    <WalletMark name={w.displayName} />
-                    <span style={{ flex: 1 }}>{w.displayName}</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        textTransform: "uppercase",
-                        letterSpacing: "1px",
-                        fontWeight: 700,
-                        color: "#20EB7A",
-                      }}
-                    >
-                      Install
-                    </span>
-                  </a>
+                  <InstallRow key={w.key} homepage={w.homepage} displayName={w.displayName} />
                 ))}
               </div>
             ) : (
@@ -499,6 +506,37 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 </button>
               ))
             )}
+
+            {(() => {
+              // Majors not genuinely present (a VESPR shim claiming e.g. the
+              // `lace` key reports name "VESPR", so Lace correctly counts as
+              // missing) get install links so users can add them.
+              const detected = new Set(
+                pickerWallets.map((w) => displayWalletName(w.name).toLowerCase())
+              );
+              const missing = CANONICAL_WALLETS.filter(
+                (w) => !detected.has(w.displayName.toLowerCase())
+              ).slice(0, 4);
+              if (pickerWallets.length === 0 || missing.length === 0) return null;
+              return (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1A1A20" }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      textTransform: "uppercase",
+                      letterSpacing: "1.2px",
+                      color: "#6B6B73",
+                      padding: "0 4px 8px",
+                    }}
+                  >
+                    More wallets
+                  </div>
+                  {missing.map((w) => (
+                    <InstallRow key={w.key} homepage={w.homepage} displayName={w.displayName} />
+                  ))}
+                </div>
+              );
+            })()}
 
             {error && (
               <div style={{ padding: "8px 4px 2px", fontSize: 12, color: "#FF422B" }}>{error}</div>
