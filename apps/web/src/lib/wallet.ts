@@ -2,9 +2,17 @@
  * CIP-30 Cardano wallet connector.
  *
  * CIP-30 defines a standard interface for dApps to connect to Cardano wallets.
- * Supported wallets: Nami, Eternl, Flint, Lace, Typhon, GeroWallet, etc.
- *
  * The wallet API is injected into `window.cardano` by browser extensions.
+ *
+ * Detection notes (mid-2026 landscape):
+ * - VESPR injects CIP-30 compatibility shims under OTHER wallets' keys
+ *   (nami, flint, …) with `.name === "VESPR"`, so naive key enumeration shows
+ *   the same wallet many times. We therefore enumerate ALL window.cardano keys
+ *   and dedupe by the injected `.name`, preferring each wallet's canonical key.
+ * - Nami was sunset in Jan 2025 (merged into Lace as "Nami mode"); Flint was
+ *   sunset by dcSpark in Aug 2024. Neither appears in CANONICAL_WALLETS.
+ * - Eternl historically also injected under its old "ccvault" key — the
+ *   name-dedupe collapses it, and we skip the alias key outright.
  */
 
 /** Known wallet identifiers from window.cardano */
@@ -13,6 +21,44 @@ export interface WalletInfo {
   name: string;
   icon: string;
   apiVersion: string;
+}
+
+/** A wallet we recognize: canonical window.cardano key, display name, homepage. */
+export interface CanonicalWallet {
+  key: string;
+  displayName: string;
+  homepage: string;
+}
+
+/**
+ * Live CIP-30 browser wallets as of mid-2026, ordered by popularity.
+ * Used for picker ordering, canonical-key dedupe preference, and the
+ * "no wallets installed" suggestion list (top 4).
+ */
+export const CANONICAL_WALLETS: CanonicalWallet[] = [
+  { key: "eternl", displayName: "Eternl", homepage: "https://eternl.io" },
+  { key: "lace", displayName: "Lace", homepage: "https://www.lace.io" },
+  { key: "vespr", displayName: "VESPR", homepage: "https://vespr.xyz" },
+  { key: "typhoncip30", displayName: "Typhon", homepage: "https://typhonwallet.io" },
+  { key: "begin", displayName: "Begin", homepage: "https://begin.is" },
+  { key: "yoroi", displayName: "Yoroi", homepage: "https://yoroi-wallet.com" },
+  { key: "gerowallet", displayName: "GeroWallet", homepage: "https://gerowallet.io" },
+  { key: "nufi", displayName: "NuFi", homepage: "https://nu.fi" },
+  { key: "tokeo", displayName: "Tokeo", homepage: "https://tokeo.io" },
+];
+
+/** Keys that are aliases of another wallet's injection, never wallets themselves. */
+const NON_WALLET_KEYS = new Set(["ccvault"]);
+
+/** Match an injected `.name` (any casing, optional " Wallet" suffix) to our registry. */
+export function canonicalWalletFor(name: string): CanonicalWallet | undefined {
+  const norm = name.trim().toLowerCase();
+  return CANONICAL_WALLETS.find(
+    (w) =>
+      norm === w.key ||
+      norm === w.displayName.toLowerCase() ||
+      norm.startsWith(`${w.displayName.toLowerCase()} `)
+  );
 }
 
 /** Connected wallet state. */
@@ -50,32 +96,75 @@ interface CIP30WalletEntry {
   isEnabled(): Promise<boolean>;
 }
 
-/** Detect available CIP-30 wallets in the browser. */
+/**
+ * Preference rank for candidates sharing the same wallet name (lower wins):
+ * 0 — key is the wallet's canonical key ("vespr" for name "VESPR")
+ * 1 — key equals the normalized name (unknown-but-self-named wallets)
+ * 2 — anything else (e.g. VESPR's shim under "nami")
+ */
+function candidateRank(candidate: WalletInfo, normName: string): number {
+  const canonical = canonicalWalletFor(normName);
+  if (canonical && candidate.id === canonical.key) return 0;
+  if (candidate.id.toLowerCase() === normName) return 1;
+  return 2;
+}
+
+/**
+ * Detect available CIP-30 wallets in the browser.
+ *
+ * Enumerates every window.cardano key (not a hardcoded list), keeps entries
+ * that look like CIP-30 initial APIs (`.enable` + `.name`), then dedupes by
+ * normalized name so wallets that inject compatibility shims under other
+ * keys (VESPR) appear exactly once, under their own key.
+ */
 export function detectWallets(): WalletInfo[] {
   if (typeof window === "undefined") return [];
 
   const cardano = (window as unknown as Record<string, unknown>).cardano as
-    | Record<string, CIP30WalletEntry>
+    | Record<string, Partial<CIP30WalletEntry> | undefined>
     | undefined;
 
-  if (!cardano) return [];
+  if (!cardano || typeof cardano !== "object") return [];
 
-  const knownWallets = ["nami", "eternl", "flint", "lace", "typhon", "gerowallet", "begin", "vespr"];
-  const found: WalletInfo[] = [];
+  const candidates: WalletInfo[] = [];
+  for (const key of Object.keys(cardano)) {
+    if (NON_WALLET_KEYS.has(key)) continue;
+    let entry: Partial<CIP30WalletEntry> | undefined;
+    try {
+      entry = cardano[key];
+    } catch {
+      continue; // hostile getter — not a wallet we can use
+    }
+    if (!entry || typeof entry !== "object") continue;
+    if (typeof entry.enable !== "function") continue;
+    if (typeof entry.name !== "string" || entry.name.trim() === "") continue;
 
-  for (const id of knownWallets) {
-    const entry = cardano[id];
-    if (entry && typeof entry.enable === "function") {
-      found.push({
-        id,
-        name: entry.name,
-        icon: entry.icon,
-        apiVersion: entry.apiVersion,
-      });
+    candidates.push({
+      id: key,
+      name: entry.name.trim(),
+      icon: typeof entry.icon === "string" ? entry.icon : "",
+      apiVersion: typeof entry.apiVersion === "string" ? entry.apiVersion : "",
+    });
+  }
+
+  // Dedupe: one entry per normalized name, best-ranked key wins (first seen on ties).
+  const byName = new Map<string, WalletInfo>();
+  for (const c of candidates) {
+    const norm = c.name.toLowerCase();
+    const existing = byName.get(norm);
+    if (!existing || candidateRank(c, norm) < candidateRank(existing, norm)) {
+      byName.set(norm, c);
     }
   }
 
-  return found;
+  // Order: canonical (popularity) first, then unknown wallets alphabetically.
+  const orderOf = (w: WalletInfo): number => {
+    const canonical = canonicalWalletFor(w.name);
+    return canonical ? CANONICAL_WALLETS.indexOf(canonical) : CANONICAL_WALLETS.length;
+  };
+  return [...byName.values()].sort(
+    (a, b) => orderOf(a) - orderOf(b) || a.name.localeCompare(b.name)
+  );
 }
 
 /** Connect to a specific wallet by ID. */

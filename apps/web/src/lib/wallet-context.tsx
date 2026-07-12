@@ -27,6 +27,8 @@ import {
   connectWallet,
   getRewardAddressHex,
   signCommunityPayload,
+  canonicalWalletFor,
+  CANONICAL_WALLETS,
   type CardanoWalletApi,
   type SignedCommunityPayload,
   type WalletInfo,
@@ -104,6 +106,57 @@ function stakeShortFromHex(rewardAddressHex: string): string {
   return `${hex.slice(0, 6)}…${hex.slice(-4)}`;
 }
 
+/**
+ * Human display name for a detected wallet: canonical registry name when we
+ * know the wallet, else title-case all-lowercase injected names ("eternl" →
+ * "Eternl"), else the injected name as-is.
+ */
+function displayWalletName(injectedName: string): string {
+  const canonical = canonicalWalletFor(injectedName);
+  if (canonical) return canonical.displayName;
+  const trimmed = injectedName.trim();
+  if (trimmed && trimmed === trimmed.toLowerCase()) {
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+  return trimmed;
+}
+
+/** 22px rounded wallet mark: extension icon (data-uri) or letter fallback. */
+function WalletMark({ icon, name }: { icon?: string; name: string }) {
+  if (icon) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={icon}
+        alt=""
+        width={22}
+        height={22}
+        style={{ borderRadius: 6, flexShrink: 0, objectFit: "contain" }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(32,235,122,0.12)",
+        color: "#20EB7A",
+        fontSize: 11,
+        fontWeight: 700,
+      }}
+    >
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 /** True for CIP-30 "user declined" shapes (DataSignError code 3 et al). */
 function isUserRejection(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
@@ -142,8 +195,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const hex = (await getRewardAddressHex(wallet.api)).toLowerCase();
       const short = stakeShortFromHex(hex);
 
+      const prettyName = displayWalletName(wallet.info.name);
       apiRef.current = wallet.api;
-      setWalletName(wallet.info.name);
+      setWalletName(prettyName);
       setWalletIcon(wallet.info.icon || null);
       setRewardAddressHex(hex);
       setStakeShort(short);
@@ -155,7 +209,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // private mode etc. — persistence is best-effort
       }
 
-      return { walletName: wallet.info.name, rewardAddressHex: hex, stakeShort: short, api: wallet.api };
+      return { walletName: prettyName, rewardAddressHex: hex, stakeShort: short, api: wallet.api };
     } catch (err) {
       apiRef.current = null;
       setStatus("disconnected");
@@ -365,11 +419,52 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             </div>
 
             {pickerWallets.length === 0 ? (
-              <div style={{ padding: "14px 8px 8px", fontSize: 13, color: "#9898A1", lineHeight: 1.5 }}>
+              <div style={{ padding: "6px 4px 4px", fontSize: 13, color: "#9898A1", lineHeight: 1.5 }}>
                 No Cardano wallets detected.
-                <div style={{ fontSize: 12, color: "#6B6B73", marginTop: 4 }}>
-                  Install a CIP-30 wallet extension such as Eternl, Lace, or Typhon, then reload.
+                <div style={{ fontSize: 12, color: "#6B6B73", margin: "4px 0 12px" }}>
+                  Install a CIP-30 browser wallet, then reload this page.
                 </div>
+                {CANONICAL_WALLETS.slice(0, 4).map((w) => (
+                  <a
+                    key={w.key}
+                    href={w.homepage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 10px",
+                      marginBottom: 6,
+                      borderRadius: 6,
+                      fontSize: 13,
+                      color: "#FFFFFF",
+                      textDecoration: "none",
+                      background: "#0A0A0B",
+                      border: "1px solid #1A1A20",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = "#1A1A1D";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = "#0A0A0B";
+                    }}
+                  >
+                    <WalletMark name={w.displayName} />
+                    <span style={{ flex: 1 }}>{w.displayName}</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                        fontWeight: 700,
+                        color: "#20EB7A",
+                      }}
+                    >
+                      Install
+                    </span>
+                  </a>
+                ))}
               </div>
             ) : (
               pickerWallets.map((w) => (
@@ -399,11 +494,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     (e.currentTarget as HTMLButtonElement).style.background = "transparent";
                   }}
                 >
-                  {w.icon && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={w.icon} alt="" width={20} height={20} style={{ borderRadius: 4 }} />
-                  )}
-                  {w.name}
+                  <WalletMark icon={w.icon || undefined} name={displayWalletName(w.name)} />
+                  {displayWalletName(w.name)}
                 </button>
               ))
             )}

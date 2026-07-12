@@ -11,9 +11,54 @@ import {
   fmtCount,
   type TokenDetail as LegacyTokenDetail,
 } from "@/lib/public-data";
-import TokenChart from "@/components/TokenChart";
+import dynamic from "next/dynamic";
 import BoostButton from "@/components/community/BoostButton";
 import Discussion from "@/components/community/Discussion";
+import { dexhunterSwapUrl } from "@/components/SwapWidget";
+
+// lightweight-charts is heavy — keep it out of the initial route JS.
+const TokenChart = dynamic(() => import("@/components/TokenChart"), {
+  ssr: false,
+  loading: () => (
+    <div
+      aria-busy="true"
+      aria-label="Loading chart"
+      style={{
+        height: 440,
+        borderRadius: 8,
+        border: "1px solid var(--color-border)",
+        background: "var(--color-bg-elevated)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 10.5,
+        fontWeight: 700,
+        letterSpacing: 1,
+        textTransform: "uppercase",
+        color: "var(--color-text-muted)",
+      }}
+    >
+      Loading chart…
+    </div>
+  ),
+});
+
+// DexHunter widget wrapper — only mounted after an explicit user tap
+// (see TradeCard), so the swap bundle never ships with the route.
+const SwapWidget = dynamic(() => import("@/components/SwapWidget"), {
+  ssr: false,
+  loading: () => (
+    <div
+      aria-busy="true"
+      style={{
+        height: 420,
+        borderRadius: 8,
+        border: "1px solid var(--color-border-soft)",
+        background: "var(--color-bg-secondary)",
+      }}
+    />
+  ),
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -602,6 +647,7 @@ function AssetTokenPage({ unit }: { unit: string }) {
           marginTop: 14,
         }}
       >
+        <TradeCard unit={unit} symbol={detail.symbol} />
         <LiveTradesCard />
         <AgentCard unit={unit} />
       </div>
@@ -1299,6 +1345,154 @@ function PairTd({ children }: { children: React.ReactNode }) {
     >
       {children}
     </td>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trade card — DexHunter swap widget, loaded strictly on demand.
+// Collapsed by default on mobile; the heavy widget chunk is only fetched
+// after the user taps "Load trade widget".
+// ---------------------------------------------------------------------------
+
+function SwapArrowsIcon({ size = 15 }: { size?: number }) {
+  return (
+    <SvgBase size={size}>
+      <path d="M17 3l4 4-4 4" />
+      <path d="M21 7H7" />
+      <path d="M7 21l-4-4 4-4" />
+      <path d="M3 17h14" />
+    </SvgBase>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ transition: "transform 160ms ease", transform: open ? "rotate(180deg)" : "none", flexShrink: 0 }}
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function TradeCard({ unit, symbol }: { unit: string; symbol: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loadWidget, setLoadWidget] = useState(false);
+
+  // Collapsed by default on mobile; open on desktop where space is cheap.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 900px)").matches) {
+      setExpanded(true);
+    }
+  }, []);
+
+  return (
+    <section
+      style={{
+        background: "var(--color-bg-elevated)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 8,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          padding: "18px 20px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+          color: "var(--color-text-primary)",
+        }}
+      >
+        <span style={{ display: "inline-flex", color: "var(--color-brand)" }}>
+          <SwapArrowsIcon />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>Trade</span>
+          <span style={{ display: "block", fontSize: 11, color: "var(--color-text-muted)", marginTop: 3 }}>
+            Swap {symbol} in-app via DexHunter aggregation
+          </span>
+        </span>
+        <span style={{ color: "var(--color-text-muted)", display: "inline-flex" }}>
+          <ChevronIcon open={expanded} />
+        </span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: "0 20px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {loadWidget ? (
+            <SwapWidget unit={unit} symbol={symbol} />
+          ) : (
+            <div
+              style={{
+                borderRadius: 8,
+                border: "1px solid var(--color-border-soft)",
+                background: "var(--color-bg-secondary)",
+                padding: "26px 18px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 12,
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.55, maxWidth: 300 }}>
+                Best-price routing across every Cardano DEX. The widget loads on demand to keep this
+                page fast.
+              </p>
+              <button
+                onClick={() => setLoadWidget(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 18px",
+                  borderRadius: 6,
+                  background: "var(--color-brand)",
+                  color: "#001A0E",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <SwapArrowsIcon size={14} />
+                Load trade widget
+              </button>
+              <a
+                href={dexhunterSwapUrl(unit)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 11.5, fontWeight: 600, color: "var(--color-text-muted)" }}
+              >
+                or open {symbol} on app.dexhunter.io ↗
+              </a>
+            </div>
+          )}
+          <span style={{ fontSize: 10.5, color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+            Orders execute through DexHunter smart contracts with your own wallet. Basilisk never
+            holds funds.
+          </span>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ReactDOM from "react-dom";
 import {
   fetchChainTip,
   fetchAdaMarket,
@@ -16,7 +17,19 @@ import type { ScreenerResponse, ScreenerToken } from "../../../lib/dex-data";
 
 type Timeframe = "1H" | "4H" | "1D" | "1W";
 
+// Next's app router ships React canary, where ReactDOM.preload exists at
+// runtime — @types/react-dom@18 just doesn't declare it yet.
+const preloadFetch = (
+  ReactDOM as unknown as {
+    preload?: (href: string, opts: { as: string; crossOrigin?: string }) => void;
+  }
+).preload;
+
 export default function DashboardPage() {
+  // Warm the movers data: emits <link rel="preload" as="fetch"> in the SSR
+  // head so the request starts before hydration + the client effect run.
+  preloadFetch?.("/api/v1/tokens", { as: "fetch", crossOrigin: "anonymous" });
+
   const [tip, setTip] = useState<ChainTip | null>(null);
   const [ada, setAda] = useState<AdaMarket | null>(null);
   const [gainers, setGainers] = useState<ScreenerToken[]>([]);
