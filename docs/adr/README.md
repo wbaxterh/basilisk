@@ -25,3 +25,4 @@ Each ADR follows [Michael Nygard's template](https://cognitect.com/blog/2011/11/
 | [005](005-geckoterminal-ohlcv-minswap.md) | GeckoTerminal free API for OHLCV candles + Minswap coverage | Accepted | 2026-07-06 |
 | [006](006-community-layer-neon-cip8.md) | Community layer (boosts + discussion) on Neon Postgres with CIP-30/CIP-8 wallet signatures | Accepted | 2026-07-06 |
 | [007](007-in-app-assistant-anthropic-api.md) | In-app "Ask Basilisk" assistant via the Anthropic API | Accepted | 2026-07-07 |
+| [008](008-token-logo-pipeline.md) | Token logo pipeline — registry PNGs proxied, GeckoTerminal redirect map, SVG monogram fallback | Accepted | 2026-07-11 |

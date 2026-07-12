@@ -25,7 +25,7 @@
  * traffic stays well under that:
  * - token pools: 180 s per token
  * - tokens/multi: 300 s per 30-token chunk (screener merge = 2 chunks / 5 min)
- * - ohlcv: 120 s (60 s for 15m) per pool+tf
+ * - ohlcv: per-tf TTLs (30 s for 1m/5m … 600 s for 1d/1w) per pool+tf+currency
  */
 
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
@@ -101,8 +101,6 @@ async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Pr
 const TTL = {
   tokenPools: 180_000,
   tokensMulti: 300_000,
-  ohlcv: 120_000,
-  ohlcv15m: 60_000,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -211,7 +209,10 @@ export interface GeckoTokenStats {
   topPoolAddress: string | null;
 }
 
-export type GeckoTimeframe = "15m" | "1h" | "4h" | "1d";
+export type GeckoTimeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "12h" | "1d" | "1w";
+
+/** GT `currency=` param: "usd" candles or "token" (= quote-token, ADA). */
+export type GeckoCurrency = "usd" | "token";
 
 export interface Candle {
   /** Unix seconds (UTC), ascending. */
@@ -227,10 +228,12 @@ export interface Candle {
 export interface OhlcvResult {
   candles: Candle[];
   /**
-   * Denomination of open/high/low/close and volume. GT returns USD even for
-   * ADA-quoted pools (verified: hourly close === base_token_price_usd).
+   * Denomination of open/high/low/close. With currency=usd GT returns USD
+   * even for ADA-quoted pools (verified: hourly close === base_token_price_usd);
+   * with currency=token candles are quoted in the pool's quote token (ADA).
+   * Volume stays USD either way.
    */
-  quote: "USD";
+  quote: "USD" | "ADA";
   /** Pool base/quote symbols from GT meta, e.g. "SNEK/ADA". */
   poolLabel: string | null;
 }
@@ -328,58 +331,113 @@ export async function getTokensMulti(units: string[]): Promise<Map<string, Gecko
 // OHLCV
 // ---------------------------------------------------------------------------
 
-const TF_MAP: Record<GeckoTimeframe, { path: string; aggregate: number }> = {
+/**
+ * GT path/aggregate per timeframe. "1w" has no upstream equivalent: we fetch
+ * daily candles (limit=1000 ≈ 2.7 years) and aggregate into Monday-UTC weekly
+ * buckets locally.
+ */
+const TF_MAP: Record<Exclude<GeckoTimeframe, "1w">, { path: string; aggregate: number }> = {
+  "1m": { path: "minute", aggregate: 1 },
+  "5m": { path: "minute", aggregate: 5 },
   "15m": { path: "minute", aggregate: 15 },
   "1h": { path: "hour", aggregate: 1 },
   "4h": { path: "hour", aggregate: 4 },
+  "12h": { path: "hour", aggregate: 12 },
   "1d": { path: "day", aggregate: 1 },
 };
+
+/** Cache TTL per timeframe — short bars refresh fast, weekly barely moves. */
+const OHLCV_TTL: Record<GeckoTimeframe, number> = {
+  "1m": 30_000,
+  "5m": 30_000,
+  "15m": 60_000,
+  "1h": 120_000,
+  "4h": 120_000,
+  "12h": 120_000,
+  "1d": 600_000,
+  "1w": 600_000,
+};
+
+const DAY_SECONDS = 86_400;
+const WEEK_SECONDS = 7 * DAY_SECONDS;
+/** 1970-01-01 was a Thursday; shift so buckets open Monday 00:00 UTC. */
+const MONDAY_EPOCH_OFFSET = 3 * DAY_SECONDS;
+
+/** Roll ascending daily candles into Monday-UTC weekly buckets. */
+function aggregateWeekly(daily: Candle[]): Candle[] {
+  const buckets = new Map<number, Candle>();
+  for (const c of daily) {
+    const weekStart =
+      Math.floor((c.time + MONDAY_EPOCH_OFFSET) / WEEK_SECONDS) * WEEK_SECONDS -
+      MONDAY_EPOCH_OFFSET;
+    const b = buckets.get(weekStart);
+    if (!b) {
+      buckets.set(weekStart, { ...c, time: weekStart });
+    } else {
+      // daily input is ascending, so the incoming candle always closes later
+      b.high = Math.max(b.high, c.high);
+      b.low = Math.min(b.low, c.low);
+      b.close = c.close;
+      b.volume += c.volume;
+    }
+  }
+  return [...buckets.values()].sort((a, b) => a.time - b.time);
+}
+
+function parseOhlcvRows(rows: number[][]): Candle[] {
+  const byTime = new Map<number, Candle>();
+  for (const row of rows) {
+    const [time, open, high, low, close, volume] = row;
+    if (!Number.isFinite(time)) continue;
+    // Skip rows with missing/zero OHLC — a null low coerced to 0 would
+    // crush the whole price scale to zero on the chart.
+    if (!(open! > 0) || !(high! > 0) || !(low! > 0) || !(close! > 0)) continue;
+    byTime.set(time, {
+      time,
+      open: open!,
+      high: high!,
+      low: low!,
+      close: close!,
+      volume: Number.isFinite(volume) ? volume : 0,
+    });
+  }
+  return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
 
 /**
  * Candles for a pool (bare address hex, NOT "cardano_"-prefixed).
  * GT shape: {data:{attributes:{ohlcv_list:[[ts,o,h,l,c,volUsd],...]}},
  * meta:{base:{symbol},quote:{symbol}}} — list is newest-first and can
  * duplicate the boundary row; we dedupe by ts and sort ascending.
+ *
+ * Upstream limit is ALWAYS 1000 so there is exactly one cache entry per
+ * pool+tf+currency; `limit` only slices the tail of the cached window.
  */
 export async function getOhlcv(
   poolAddress: string,
   tf: GeckoTimeframe,
-  limit = 300
+  limit = 300,
+  currency: GeckoCurrency = "usd"
 ): Promise<OhlcvResult> {
   const pool = stripNetworkPrefix(poolAddress.toLowerCase());
-  const cappedLimit = Math.max(1, Math.min(Math.floor(limit), 500));
-  const { path, aggregate } = TF_MAP[tf];
-  const ttl = tf === "15m" ? TTL.ohlcv15m : TTL.ohlcv;
-  return cached(`gt:ohlcv:${pool}:${tf}:${cappedLimit}`, ttl, async () => {
+  const cappedLimit = Math.max(1, Math.min(Math.floor(limit), 1000));
+  const { path, aggregate } = TF_MAP[tf === "1w" ? "1d" : tf];
+  const full = await cached(`gt:ohlcv:${pool}:${tf}:${currency}`, OHLCV_TTL[tf], async () => {
     const data = await gtFetch<{
       data: { attributes: { ohlcv_list: number[][] } };
       meta?: { base?: { symbol?: string }; quote?: { symbol?: string } };
     }>(
-      `/networks/cardano/pools/${pool}/ohlcv/${path}?aggregate=${aggregate}&limit=${cappedLimit}&currency=usd`
+      `/networks/cardano/pools/${pool}/ohlcv/${path}?aggregate=${aggregate}&limit=1000&currency=${currency}`
     );
-    const byTime = new Map<number, Candle>();
-    for (const row of data.data?.attributes?.ohlcv_list ?? []) {
-      const [time, open, high, low, close, volume] = row;
-      if (!Number.isFinite(time)) continue;
-      // Skip rows with missing/zero OHLC — a null low coerced to 0 would
-      // crush the whole price scale to zero on the chart.
-      if (!(open! > 0) || !(high! > 0) || !(low! > 0) || !(close! > 0)) continue;
-      byTime.set(time, {
-        time,
-        open: open!,
-        high: high!,
-        low: low!,
-        close: close!,
-        volume: Number.isFinite(volume) ? volume : 0,
-      });
-    }
-    const candles = [...byTime.values()].sort((a, b) => a.time - b.time);
+    const daily = parseOhlcvRows(data.data?.attributes?.ohlcv_list ?? []);
+    const candles = tf === "1w" ? aggregateWeekly(daily) : daily;
     const base = data.meta?.base?.symbol;
     const quote = data.meta?.quote?.symbol;
     return {
       candles,
-      quote: "USD" as const,
+      quote: currency === "token" ? ("ADA" as const) : ("USD" as const),
       poolLabel: base && quote ? `${base}/${quote}` : null,
     };
   });
+  return { ...full, candles: full.candles.slice(-cappedLimit) };
 }

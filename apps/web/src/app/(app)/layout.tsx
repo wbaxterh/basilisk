@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Sidebar from "../../components/Sidebar";
+import MobileNav from "../../components/MobileNav";
 import Header from "../../components/Header";
 import ChatPanel from "../../components/chat/ChatPanel";
 import { WalletProvider } from "../../lib/wallet-context";
@@ -16,11 +17,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         flexDirection: "column",
       }}>
         <Header />
-        <main style={{ flex: 1, padding: 24 }}>
+        <main className="bk-main-pad" style={{ flex: 1, padding: 24 }}>
           {children}
         </main>
       </div>
       <ChatPanel />
+      <MobileNav />
     </WalletProvider>
   );
 }

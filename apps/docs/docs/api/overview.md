@@ -52,14 +52,15 @@ There are no hard per-key limits yet because there are no keys — but **be gent
 | `GET /api/v1` | 300 s |
 | `GET /api/v1/tokens` | 45 s |
 | `GET /api/v1/tokens/{asset}` | 60 s |
-| `GET /api/v1/tokens/{asset}/ohlcv` | 60 s (module cache 60–120 s per pool+timeframe) |
+| `GET /api/v1/tokens/{asset}/ohlcv` | per-timeframe: ~30 s for `1m` up to ~300 s for `1d`/`1w` (CDN + module cache per pool+timeframe) |
+| `GET /api/v1/tokens/{asset}/logo` | ~1 day CDN cache for PNG/redirect responses; shorter (negative cache) for monogram fallbacks |
 | `GET /api/v1/search` | 30 s |
 | `GET /api/v1/wallet/{address}` | 30 s |
 | `GET /api/v1/market` | 90 s |
 | `GET /api/v1/community/boosts` | 30 s |
 | `GET /api/v1/community/comments/{unit}` | 15 s |
 
-The OHLCV endpoint deserves extra gentleness: GeckoTerminal's free tier is roughly **10 calls per minute** upstream. Basilisk caches hard specifically so you don't have to think about that — polling a chart faster than 60 s is pure waste.
+The OHLCV endpoint deserves extra gentleness: GeckoTerminal's free tier is roughly **10 calls per minute** upstream. Basilisk caches hard specifically so you don't have to think about that — cache TTLs scale with the timeframe (~30 s for `1m`, ~60 s for `5m`/`15m`, ~120 s for `1h`/`4h`/`12h`, ~300 s for `1d`/`1w`), and polling faster than the timeframe's TTL is pure waste.
 
 ## Endpoints
 
@@ -68,7 +69,8 @@ The OHLCV endpoint deserves extra gentleness: GeckoTerminal's free tier is rough
 | `GET /api/v1` | Self-describing API index |
 | `GET /api/v1/tokens` | Screener: curated Cardano native tokens with live price, volume, liquidity, txns |
 | `GET /api/v1/tokens/{asset}` | Token detail by asset unit (`policyId` + `assetNameHex`) |
-| `GET /api/v1/tokens/{asset}/ohlcv` | OHLCV candles (`tf=15m\|1h\|4h\|1d`) from the token's top GeckoTerminal pool |
+| `GET /api/v1/tokens/{asset}/ohlcv` | OHLCV candles (`tf=1m\|5m\|15m\|1h\|4h\|12h\|1d\|1w`, `quote=usd\|ada`) from a GeckoTerminal pool, with `poolChoices` for pool switching |
+| `GET /api/v1/tokens/{asset}/logo` | Token logo — **always returns an image** (registry PNG, `302` redirect, or SVG monogram) |
 | `GET /api/v1/search?q=` | Search Cardano tokens by ticker or name |
 | `GET /api/v1/wallet/{address}` | Wallet overview for `addr1...`, `stake1...`, or `$handle` |
 | `GET /api/v1/market` | ADA market snapshot + price series + optional ecosystem list |
@@ -172,9 +174,10 @@ Holder counts are Koios **estimates** (`Prefer: count=estimated`) and may be `nu
 
 ### `GET /api/v1/tokens/{asset}/ohlcv` — candlestick chart data
 
-OHLCV candles from **GeckoTerminal** — the only free source with Minswap coverage. By default the endpoint charts the token's **deepest GeckoTerminal pool** (in practice its main Minswap pool); pass `?pool=<address hex>` (from the token's pairs list) to chart a specific pool instead. The response names exactly which pool it read — the chart is **that pool's candles, not an all-DEX aggregate**.
+OHLCV candles from **GeckoTerminal** — the only free source with Minswap coverage. By default the endpoint charts the token's **deepest GeckoTerminal pool** (in practice its main Minswap pool); pass `?pool=<address hex>` (from the token's pairs list or the response's `poolChoices`) to chart a specific pool instead. The response names exactly which pool it read — the chart is **that pool's candles, not an all-DEX aggregate**.
 
-- `?tf=15m|1h|4h|1d` — timeframe (default `1h`)
+- `?tf=1m|5m|15m|1h|4h|12h|1d|1w` — timeframe (default `1h`)
+- `?quote=usd|ada` — denomination (default `usd`). `ada` **re-bases the USD candles against ADA's USD price** — derived, not exchange-native quotes
 - `?limit=1..500` — number of candles (default `300`)
 - `?pool=<hex>` — chart a specific pool address instead of the top pool
 
@@ -192,6 +195,10 @@ curl "https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f8
   },
   "tf": "1h",
   "quote": "USD",
+  "poolChoices": [
+    { "address": "f5808c2c990d86da54bfc97d89cee6efa20cd8…", "dexId": "minswap", "name": "SNEK / ADA" },
+    { "address": "3a1c9e0b7712fd0166b4dc20aa0f2c9e88b1a4…", "dexId": "minswap", "name": "SNEK / iUSD" }
+  ],
   "candles": [
     { "time": 1783371600, "open": 0.000415, "high": 0.000420, "low": 0.000415, "close": 0.000420, "volume": 391.64 },
     { "time": 1783375200, "open": 0.000420, "high": 0.000420, "low": 0.000412, "close": 0.000412, "volume": 735.98 },
@@ -203,9 +210,24 @@ curl "https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f8
 
 Notes:
 
-- `time` is Unix **seconds** (UTC), candles ascending. Prices **and volume are USD-denominated** — GeckoTerminal returns USD even for ADA-quoted pools, so ADA-quoted candles are not available from this source.
+- `time` is Unix **seconds** (UTC), candles ascending. GeckoTerminal returns USD-denominated prices **and** volume even for ADA-quoted pools; `?quote=ada` values are **derived** by re-basing against ADA's USD price, not read from the pool.
+- `poolChoices` lists the token's chartable GeckoTerminal pools (address, dex, name) so UIs can offer a pool switcher — feed an entry's `address` back as `?pool=`.
 - Tokens with no GeckoTerminal-indexed pool (i.e. liquidity only on SundaeSwap/WingRiders) return **404 "No chartable pool found"** — no chart yet, honestly, until Basilisk's own ingestion lands.
-- GeckoTerminal's free tier is ~10 calls/min; responses are cached 60–120 s server-side. Don't poll faster.
+- GeckoTerminal's free tier is ~10 calls/min; responses are cached server-side **per timeframe** — ~30 s for `1m`, ~60 s for `5m`/`15m`, ~120 s for `1h`/`4h`/`12h`, ~300 s for `1d`/`1w`. Don't poll faster than the TTL.
+
+### `GET /api/v1/tokens/{asset}/logo` — token logo
+
+**Always returns an image** — point an `<img src>` at it and never handle a 404. Resolution is tiered:
+
+1. **Cardano Token Registry PNG** (via Koios) — served as `image/png` after PNG magic-byte validation, with a **long CDN cache** (`Cache-Control: s-maxage` on the order of a day). Covers the full curated registry today.
+2. **`302` redirect** to a precomputed GeckoTerminal-hosted image for tokens without registry art.
+3. **Deterministic SVG monogram** (`image/svg+xml`) as the final fallback — same token, same art, every time. Served with a **shorter cache TTL** (negative cache) so tokens that later gain registry art pick it up automatically.
+
+```bash
+curl -I https://basilisk-seven.vercel.app/api/v1/tokens/279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b/logo
+```
+
+Check the `Content-Type` (`image/png` or `image/svg+xml`) or a `302 Location` header if you care which tier answered — browsers don't need to. Registry PNGs are served at their submitted size (~33 KB average); pre-sized variants are on the roadmap. Design details in [ADR-008](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/008-token-logo-pipeline.md).
 
 ### `GET /api/v1/search?q=` — token search
 

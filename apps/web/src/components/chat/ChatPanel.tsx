@@ -353,6 +353,7 @@ export default function ChatPanel() {
       {/* Launcher */}
       <button
         type="button"
+        className="bk-chat-launcher"
         aria-label={open ? "Close Ask Basilisk" : "Ask Basilisk"}
         onClick={() => (open ? closePanel() : setOpen(true))}
         onMouseEnter={() => setHoverLauncher(true)}

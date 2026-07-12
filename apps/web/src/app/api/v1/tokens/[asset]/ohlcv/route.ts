@@ -1,18 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { ApiError } from "@/lib/dex-data";
-import { getOhlcv, getTokenPools, type GeckoTimeframe } from "@/lib/gecko-data";
+import {
+  getOhlcv,
+  getTokenPools,
+  type GeckoCurrency,
+  type GeckoTimeframe,
+} from "@/lib/gecko-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TIMEFRAMES = new Set<string>(["15m", "1h", "4h", "1d"]);
+const TIMEFRAMES = new Set<string>(["1m", "5m", "15m", "1h", "4h", "12h", "1d", "1w"]);
+const QUOTES = new Set<string>(["usd", "ada"]);
 const POOL_RE = /^(cardano_)?[0-9a-f]{40,160}$/;
+
+/** CDN s-maxage per timeframe (seconds); swr is always 2×. */
+const EDGE_TTL: Record<string, number> = {
+  "1m": 30,
+  "5m": 30,
+  "15m": 60,
+  "1h": 120,
+  "4h": 120,
+  "12h": 120,
+  "1d": 600,
+  "1w": 600,
+};
 
 /**
  * OHLCV candles for a token's pool via GeckoTerminal (the only free source
  * with Minswap coverage). Defaults to the token's deepest GT pool; pass
- * ?pool=<address hex> to chart a specific one. Candles are USD-denominated.
+ * ?pool=<address hex> to chart a specific one. `quote=usd` (default) returns
+ * USD candles; `quote=ada` returns candles in the pool's quote token (ADA).
+ * `poolChoices` lists the top pools so the UI can offer a selector without
+ * an extra round trip.
  */
 export async function GET(
   req: NextRequest,
@@ -21,6 +42,7 @@ export async function GET(
   const { asset } = await params;
   const unit = decodeURIComponent(asset).toLowerCase();
   const tf = req.nextUrl.searchParams.get("tf") ?? "1h";
+  const quoteParam = (req.nextUrl.searchParams.get("quote") ?? "usd").toLowerCase();
   const poolParam = req.nextUrl.searchParams.get("pool");
   const limitParam = req.nextUrl.searchParams.get("limit");
 
@@ -29,7 +51,10 @@ export async function GET(
       throw new ApiError(400, "Invalid asset unit", "Expected hex policyId + assetNameHex (56-120 hex chars).");
     }
     if (!TIMEFRAMES.has(tf)) {
-      throw new ApiError(400, `Unsupported timeframe "${tf}"`, "Use tf=15m, 1h, 4h, or 1d.");
+      throw new ApiError(400, `Unsupported timeframe "${tf}"`, "Use tf=1m, 5m, 15m, 1h, 4h, 12h, 1d, or 1w.");
+    }
+    if (!QUOTES.has(quoteParam)) {
+      throw new ApiError(400, `Unsupported quote "${quoteParam}"`, "Use quote=usd or quote=ada.");
     }
     if (poolParam && !POOL_RE.test(poolParam.toLowerCase())) {
       throw new ApiError(400, "Invalid pool address", "Pass the pool address hex from the token's pairs list.");
@@ -37,8 +62,8 @@ export async function GET(
     // limit only slices the response — it is NOT part of the upstream fetch
     // or cache key, so it can't be used to mint distinct GT calls.
     const limit = limitParam ? parseInt(limitParam, 10) : 300;
-    if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
-      throw new ApiError(400, "Invalid limit", "limit must be 1-500.");
+    if (!Number.isFinite(limit) || limit < 1 || limit > 1000) {
+      throw new ApiError(400, "Invalid limit", "limit must be 1-1000.");
     }
 
     // Resolve which pool to chart: explicit ?pool= must belong to this
@@ -63,10 +88,10 @@ export async function GET(
       );
     }
 
-    // Always fetch the full window upstream (single cache key per pool+tf);
-    // client limit only trims the tail we return.
-    const full = await getOhlcv(poolAddress, tf as GeckoTimeframe, 500);
-    const ohlcv = { ...full, candles: full.candles.slice(-limit) };
+    // getOhlcv always fetches limit=1000 upstream (single cache key per
+    // pool+tf+currency); the client limit only trims the tail we return.
+    const currency: GeckoCurrency = quoteParam === "ada" ? "token" : "usd";
+    const ohlcv = await getOhlcv(poolAddress, tf as GeckoTimeframe, limit, currency);
     if (ohlcv.candles.length === 0) {
       return NextResponse.json(
         {
@@ -77,6 +102,7 @@ export async function GET(
       );
     }
 
+    const sMaxage = EDGE_TTL[tf] ?? 120;
     return NextResponse.json(
       {
         asset: unit,
@@ -85,12 +111,23 @@ export async function GET(
           dexId: pool?.dexId ?? "minswap",
           name: pool?.name ?? ohlcv.poolLabel ?? poolAddress,
         },
+        // Top pools by reserve, so the UI can render a selector for free.
+        poolChoices: pools.slice(0, 6).map((p) => ({
+          address: p.address,
+          dexId: p.dexId,
+          name: p.name,
+          reserveUsd: p.reserveUsd,
+        })),
         tf,
-        quote: ohlcv.quote, // candles are USD-denominated (verified vs GT meta)
+        quote: ohlcv.quote, // "USD" | "ADA" per the quote param
         candles: ohlcv.candles,
         coverage: "Chart: top pool via GeckoTerminal (includes Minswap)",
       },
-      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } }
+      {
+        headers: {
+          "Cache-Control": `public, s-maxage=${sMaxage}, stale-while-revalidate=${sMaxage * 2}`,
+        },
+      }
     );
   } catch (e) {
     if (e instanceof ApiError) {

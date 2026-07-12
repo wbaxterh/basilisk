@@ -361,61 +361,7 @@ function PortfolioContent() {
                   r.valueUsd != null && wallet.totalValueUsd != null && wallet.totalValueUsd > 0
                     ? (r.valueUsd / wallet.totalValueUsd) * 100
                     : null;
-                return (
-                  <div
-                    key={r.key}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(160px, 2fr) 1fr 1fr 1fr minmax(110px, 1.2fr)",
-                      gap: 16,
-                      padding: "12px 20px",
-                      borderBottom: "1px solid var(--color-border-soft)",
-                      fontSize: 13,
-                      alignItems: "center",
-                    }}
-                  >
-                    <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-                      <span style={{ fontWeight: 700, color: r.isAda ? "var(--color-brand)" : "var(--color-text-primary)" }}>
-                        {r.ticker ?? shorten(r.name, 8, 4)}
-                      </span>
-                      <span style={{
-                        color: "var(--color-text-muted)",
-                        fontSize: 12,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap" as const,
-                      }}>
-                        {r.name}
-                      </span>
-                    </span>
-                    <span style={{ textAlign: "right", fontFamily: MONO, color: "var(--color-text-secondary)" }}>
-                      {fmtAmount(r.amount)}
-                    </span>
-                    <span
-                      style={{ textAlign: "right", fontFamily: MONO, color: r.priceUsd != null ? "var(--color-text-secondary)" : "var(--color-text-muted)" }}
-                      title={r.priceUsd == null && !r.isAda ? UNPRICED_TIP : undefined}
-                    >
-                      {r.priceUsd != null ? fmtUsd(r.priceUsd) : "—"}
-                    </span>
-                    <span style={{ textAlign: "right", fontFamily: MONO, color: "var(--color-text-primary)" }}>
-                      {r.valueUsd != null ? fmtUsd(r.valueUsd) : "—"}
-                    </span>
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-                      <span style={{ width: 56, height: 4, borderRadius: 2, background: "var(--color-border-soft)", overflow: "hidden" }}>
-                        <span style={{
-                          display: "block",
-                          height: "100%",
-                          width: `${Math.min(pct ?? 0, 100)}%`,
-                          background: "var(--color-brand)",
-                          borderRadius: 2,
-                        }} />
-                      </span>
-                      <span style={{ fontFamily: MONO, fontSize: 12, color: "var(--color-text-muted)", minWidth: 44, textAlign: "right" }}>
-                        {pct != null ? `${pct.toFixed(1)}%` : "—"}
-                      </span>
-                    </span>
-                  </div>
-                );
+                return <HoldingRow key={r.key} row={r} pct={pct} />;
               })}
             </div>
           </div>
@@ -430,6 +376,100 @@ function PortfolioContent() {
 // ---------------------------------------------------------------------------
 // Pieces
 // ---------------------------------------------------------------------------
+
+/** 20px token avatar via the logo proxy — falls back to a letter chip if it 404s. */
+function HoldingLogo({ unit, label }: { unit: string; label: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span style={{
+        width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+        background: "var(--color-bg-hover)", border: "1px solid var(--color-border)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 700, color: "var(--color-text-secondary)",
+      }}>
+        {label.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/v1/tokens/${encodeURIComponent(unit)}/logo`}
+      alt=""
+      width={20}
+      height={20}
+      onError={() => setFailed(true)}
+      style={{ borderRadius: "50%", flexShrink: 0, background: "var(--color-bg-hover)", objectFit: "cover" }}
+    />
+  );
+}
+
+/** Holdings row — links through to the token page (screener-style hover). */
+function HoldingRow({ row: r, pct }: { row: Row; pct: number | null }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Link
+      href={`/tokens/${encodeURIComponent(r.key)}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(160px, 2fr) 1fr 1fr 1fr minmax(110px, 1.2fr)",
+        gap: 16,
+        padding: "12px 20px",
+        borderBottom: "1px solid var(--color-border-soft)",
+        fontSize: 13,
+        alignItems: "center",
+        background: hovered ? "var(--color-bg-hover)" : "transparent",
+        transition: "background 100ms",
+        color: "inherit",
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <HoldingLogo unit={r.key} label={r.ticker ?? r.name} />
+        <span style={{ fontWeight: 700, color: r.isAda ? "var(--color-brand)" : "var(--color-text-primary)" }}>
+          {r.ticker ?? shorten(r.name, 8, 4)}
+        </span>
+        <span style={{
+          color: "var(--color-text-muted)",
+          fontSize: 12,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap" as const,
+        }}>
+          {r.name}
+        </span>
+      </span>
+      <span style={{ textAlign: "right", fontFamily: MONO, color: "var(--color-text-secondary)" }}>
+        {fmtAmount(r.amount)}
+      </span>
+      <span
+        style={{ textAlign: "right", fontFamily: MONO, color: r.priceUsd != null ? "var(--color-text-secondary)" : "var(--color-text-muted)" }}
+        title={r.priceUsd == null && !r.isAda ? UNPRICED_TIP : undefined}
+      >
+        {r.priceUsd != null ? fmtUsd(r.priceUsd) : "—"}
+      </span>
+      <span style={{ textAlign: "right", fontFamily: MONO, color: "var(--color-text-primary)" }}>
+        {r.valueUsd != null ? fmtUsd(r.valueUsd) : "—"}
+      </span>
+      <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+        <span style={{ width: 56, height: 4, borderRadius: 2, background: "var(--color-border-soft)", overflow: "hidden" }}>
+          <span style={{
+            display: "block",
+            height: "100%",
+            width: `${Math.min(pct ?? 0, 100)}%`,
+            background: "var(--color-brand)",
+            borderRadius: 2,
+          }} />
+        </span>
+        <span style={{ fontFamily: MONO, fontSize: 12, color: "var(--color-text-muted)", minWidth: 44, textAlign: "right" }}>
+          {pct != null ? `${pct.toFixed(1)}%` : "—"}
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 function Stat({ label, large, children }: { label: string; large?: boolean; children: React.ReactNode }) {
   return (

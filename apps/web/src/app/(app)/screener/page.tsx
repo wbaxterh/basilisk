@@ -584,7 +584,7 @@ function TokenRow({ row, rank, showAge, boosts, watched, onToggleWatch, onOpen }
       </td>
       <td style={{ ...tdStyle, minWidth: 200, position: "sticky", left: 80, zIndex: 1, background: stickyBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <TokenLogo src={t.imageUrl} symbol={t.symbol} />
+          <TokenLogo unit={t.address} symbol={t.symbol} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)" }}>{t.symbol}</span>
@@ -689,9 +689,11 @@ function PressureBar({ buys, sells }: { buys: number; sells: number }) {
   );
 }
 
-function TokenLogo({ src, symbol }: { src: string | null; symbol: string }) {
+/** Token avatar via the logo API route (always answers with an image and
+ * falls back upstream itself) — the letter monogram is load-error-only. */
+function TokenLogo({ unit, symbol }: { unit: string; symbol: string }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+  if (failed) {
     return (
       <span style={{
         width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
@@ -706,7 +708,7 @@ function TokenLogo({ src, symbol }: { src: string | null; symbol: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={`/api/v1/tokens/${unit}/logo`}
       alt=""
       width={22}
       height={22}
