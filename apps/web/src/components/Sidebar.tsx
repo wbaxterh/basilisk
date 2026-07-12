@@ -13,9 +13,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: "home" },
   { label: "Screener", href: "/screener", icon: "search" },
   { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
+  { label: "Dashboard", href: "/dashboard", icon: "home" },
   { label: "Alerts", href: "/alerts", icon: "bell" },
   { label: "Agents", href: "/agents", icon: "robot" },
 ];
@@ -49,7 +49,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside style={{
+    <aside className="bk-sidebar" style={{
       width: "var(--sidebar-width)",
       height: "100vh",
       position: "fixed",

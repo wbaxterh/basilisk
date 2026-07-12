@@ -6,29 +6,53 @@ import {
   fetchChainTip,
   fetchAdaMarket,
   fetchAdaSeries,
-  fetchTopGainers,
-  fetchTopLosers,
   fmtUsd,
   fmtPct,
   fmtCount,
   type ChainTip,
   type AdaMarket,
-  type CntToken,
 } from "../../../lib/public-data";
+import type { ScreenerResponse, ScreenerToken } from "../../../lib/dex-data";
 
 type Timeframe = "1H" | "4H" | "1D" | "1W";
 
 export default function DashboardPage() {
   const [tip, setTip] = useState<ChainTip | null>(null);
   const [ada, setAda] = useState<AdaMarket | null>(null);
-  const [gainers, setGainers] = useState<CntToken[]>([]);
-  const [losers, setLosers] = useState<CntToken[]>([]);
+  const [gainers, setGainers] = useState<ScreenerToken[]>([]);
+  const [losers, setLosers] = useState<ScreenerToken[]>([]);
+  const [moversLoading, setMoversLoading] = useState(true);
 
   useEffect(() => {
     fetchChainTip().then(setTip).catch(() => {});
     fetchAdaMarket().then(setAda).catch(() => {});
-    fetchTopGainers(5).then(setGainers).catch(() => {});
-    fetchTopLosers(5).then(setLosers).catch(() => {});
+    let cancelled = false;
+    fetch("/api/v1/tokens")
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`screener ${res.status}`);
+        return (await res.json()) as ScreenerResponse;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const withChange = data.tokens.filter((t) => t.change24h != null);
+        setGainers(
+          withChange
+            .filter((t) => (t.change24h ?? 0) > 0)
+            .sort((a, b) => (b.change24h ?? 0) - (a.change24h ?? 0))
+            .slice(0, 5)
+        );
+        setLosers(
+          withChange
+            .filter((t) => (t.change24h ?? 0) < 0)
+            .sort((a, b) => (a.change24h ?? 0) - (b.change24h ?? 0))
+            .slice(0, 5)
+        );
+        setMoversLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setMoversLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const epochProgress = tip ? Math.round((tip.epochSlot / 432000) * 100) : null;
@@ -79,7 +103,7 @@ export default function DashboardPage() {
       {/* Chart + movers */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
         <ChartTile ada={ada} />
-        <MoversTile gainers={gainers} losers={losers} />
+        <MoversTile gainers={gainers} losers={losers} loading={moversLoading} />
       </div>
 
       {/* Network activity */}
@@ -231,10 +255,47 @@ function ChartTile({ ada }: { ada: AdaMarket | null }) {
   );
 }
 
-function MoversTile({ gainers, losers }: { gainers: CntToken[]; losers: CntToken[] }) {
+function fmtTokenPrice(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (v <= 0) return "$0.00";
+  if (v >= 1000) return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1) return "$" + v.toFixed(2);
+  if (v >= 0.01) return "$" + v.toFixed(4);
+  const decimals = Math.min(11, 3 - Math.floor(Math.log10(v)));
+  return "$" + v.toFixed(decimals);
+}
+
+/** 20px token avatar via the logo proxy — hides itself if the logo 404s. */
+function MoverLogo({ address, symbol }: { address: string; symbol: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span style={{
+        width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+        background: "var(--color-bg-hover)", border: "1px solid var(--color-border)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 700, color: "var(--color-text-secondary)",
+      }}>
+        {symbol.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/v1/tokens/${address}/logo`}
+      alt=""
+      width={20}
+      height={20}
+      onError={() => setFailed(true)}
+      style={{ borderRadius: "50%", flexShrink: 0, background: "var(--color-bg-hover)", objectFit: "cover" }}
+    />
+  );
+}
+
+function MoversTile({ gainers, losers, loading }: { gainers: ScreenerToken[]; losers: ScreenerToken[]; loading: boolean }) {
   const [tab, setTab] = useState<"gainers" | "losers">("gainers");
   const rows = tab === "gainers" ? gainers : losers;
-  const loading = gainers.length === 0 && losers.length === 0;
 
   return (
     <div style={{
@@ -276,24 +337,33 @@ function MoversTile({ gainers, losers }: { gainers: CntToken[]; losers: CntToken
         ) : (
           rows.map((r) => {
             const pct = r.change24h ?? 0;
+            const positive = pct >= 0;
             return (
               <Link
-                key={r.id}
-                href={`/tokens/${r.id}`}
+                key={r.address}
+                href={`/tokens/${r.address}`}
                 style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
                   padding: "8px 0", borderBottom: "1px solid var(--color-border-soft)",
                   color: "inherit",
                 }}
               >
-                <span style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <MoverLogo address={r.address} symbol={r.symbol} />
                   <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)" }}>{r.symbol}</span>
-                  <span style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
-                    {r.name}
-                  </span>
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 0 ? "var(--color-positive)" : "var(--color-negative)" }}>
-                  {fmtPct(pct)}
+                <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)" }}>
+                    {fmtTokenPrice(r.priceUsd)}
+                  </span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, fontFamily: "var(--font-mono)",
+                    padding: "2px 7px", borderRadius: 999,
+                    background: positive ? "var(--color-brand-soft)" : "rgba(255, 66, 43, 0.12)",
+                    color: positive ? "var(--color-positive)" : "var(--color-negative)",
+                  }}>
+                    {fmtPct(pct)}
+                  </span>
                 </span>
               </Link>
             );

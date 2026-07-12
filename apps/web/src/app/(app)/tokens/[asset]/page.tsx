@@ -572,7 +572,8 @@ function AssetTokenPage({ unit }: { unit: string }) {
       <HeroBand detail={detail} />
 
       <div style={{ marginBottom: 14 }}>
-        <TokenChart asset={unit} />
+        <TokenChart asset={unit} height={440} />
+        <IdentityChips detail={detail} />
       </div>
 
       <div
@@ -624,45 +625,58 @@ function Breadcrumb({ symbol }: { symbol: string }) {
   );
 }
 
+/** Header avatar — served by /api/v1/tokens/{unit}/logo (which falls back
+ * upstream itself); on load error try detail.imageUrl, then the monogram. */
+function HeaderLogo({ detail }: { detail: TokenDetail }) {
+  // 0 = logo route, 1 = raw imageUrl, 2 = monogram
+  const [stage, setStage] = useState(0);
+  const src =
+    stage === 0 ? `/api/v1/tokens/${detail.address}/logo` : stage === 1 ? detail.imageUrl : null;
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={detail.name}
+        width={46}
+        height={46}
+        onError={() => setStage((s) => (s === 0 && detail.imageUrl ? 1 : 2))}
+        style={{
+          borderRadius: 10,
+          background: "var(--color-bg-elevated)",
+          border: "1px solid var(--color-border)",
+          objectFit: "cover",
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        width: 46,
+        height: 46,
+        borderRadius: 10,
+        background: "var(--color-bg-elevated)",
+        border: "1px solid var(--color-border)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 16,
+        fontWeight: 800,
+        fontFamily: "var(--font-mono)",
+        color: "var(--color-text-muted)",
+      }}
+    >
+      {detail.symbol.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
 function TokenHeader({ detail }: { detail: TokenDetail }) {
-  const socials = detail.socials ?? [];
-  const websites = detail.websites ?? [];
   return (
     <header style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
-        {detail.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={detail.imageUrl}
-            alt={detail.name}
-            width={46}
-            height={46}
-            style={{
-              borderRadius: 10,
-              background: "var(--color-bg-elevated)",
-              border: "1px solid var(--color-border)",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 10,
-              background: "var(--color-bg-elevated)",
-              border: "1px solid var(--color-border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 16,
-              fontWeight: 800,
-              fontFamily: "var(--font-mono)",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            {detail.symbol.slice(0, 2).toUpperCase()}
-          </div>
-        )}
+        <HeaderLogo detail={detail} />
 
         <div style={{ flex: 1, minWidth: 240 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
@@ -715,25 +729,33 @@ function TokenHeader({ detail }: { detail: TokenDetail }) {
           <BoostButton unit={detail.address} symbol={detail.symbol} />
         </div>
       </div>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-        <CopyChip label="Policy" value={detail.policyId} />
-        {detail.fingerprint && <CopyChip label="Fingerprint" value={detail.fingerprint} />}
-        {websites.map((w: TokenLink, i: number) => (
-          <LinkChip key={`w${i}`} href={w.url} icon={<GlobeIcon />}>
-            {w.label ?? hostnameOf(w.url)}
-          </LinkChip>
-        ))}
-        {socials.map((s: TokenLink, i: number) => {
-          const isX = (s.type ?? "").toLowerCase() === "twitter" || (s.type ?? "").toLowerCase() === "x";
-          return (
-            <LinkChip key={`s${i}`} href={s.url} icon={isX ? <XIcon /> : <LinkIcon />}>
-              {isX ? "X" : s.type ? s.type.charAt(0).toUpperCase() + s.type.slice(1) : hostnameOf(s.url)}
-            </LinkChip>
-          );
-        })}
-      </div>
     </header>
+  );
+}
+
+/** Policy / fingerprint / website / social chips — rendered below the chart
+ * so the chart itself lands above the fold. */
+function IdentityChips({ detail }: { detail: TokenDetail }) {
+  const socials = detail.socials ?? [];
+  const websites = detail.websites ?? [];
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+      <CopyChip label="Policy" value={detail.policyId} />
+      {detail.fingerprint && <CopyChip label="Fingerprint" value={detail.fingerprint} />}
+      {websites.map((w: TokenLink, i: number) => (
+        <LinkChip key={`w${i}`} href={w.url} icon={<GlobeIcon />}>
+          {w.label ?? hostnameOf(w.url)}
+        </LinkChip>
+      ))}
+      {socials.map((s: TokenLink, i: number) => {
+        const isX = (s.type ?? "").toLowerCase() === "twitter" || (s.type ?? "").toLowerCase() === "x";
+        return (
+          <LinkChip key={`s${i}`} href={s.url} icon={isX ? <XIcon /> : <LinkIcon />}>
+            {isX ? "X" : s.type ? s.type.charAt(0).toUpperCase() + s.type.slice(1) : hostnameOf(s.url)}
+          </LinkChip>
+        );
+      })}
+    </div>
   );
 }
 
@@ -752,17 +774,19 @@ function HeroBand({ detail }: { detail: TokenDetail }) {
         marginBottom: 14,
       }}
     >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: 18,
-          alignItems: "start",
-        }}
-      >
-        <div style={{ minWidth: 180 }}>
-          <FieldLabel>Price</FieldLabel>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 18, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 18,
+            alignItems: "start",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <div style={{ minWidth: 170 }}>
+            <FieldLabel>Price</FieldLabel>
             <span
               style={{
                 fontSize: 28,
@@ -774,32 +798,29 @@ function HeroBand({ detail }: { detail: TokenDetail }) {
             >
               {fmtPrice(detail.priceUsd)}
             </span>
+          </div>
+          <BandStat label="24H Volume" value={fmtUsd(detail.volume24h, 2)} />
+          <BandStat label="Liquidity" value={fmtUsd(detail.liquidityUsd, 2)} />
+          <BandStat label="Market Cap" value={detail.marketCap != null ? fmtUsd(detail.marketCap, 2) : "—"} />
+          <BandStat label="FDV" value={detail.fdv != null ? fmtUsd(detail.fdv, 2) : "—"} />
+        </div>
+
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <ChangePill label="1H" value={detail.change1h} />
+            <ChangePill label="6H" value={detail.change6h} />
             <ChangePill label="24H" value={detail.change24h} />
           </div>
-        </div>
-        <BandStat label="24H Volume" value={fmtUsd(detail.volume24h, 2)} />
-        <BandStat label="Liquidity" value={fmtUsd(detail.liquidityUsd, 2)} />
-        <BandStat label="Market Cap" value={detail.marketCap != null ? fmtUsd(detail.marketCap, 2) : "—"} />
-        <BandStat label="FDV" value={detail.fdv != null ? fmtUsd(detail.fdv, 2) : "—"} />
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          marginTop: 16,
-          paddingTop: 14,
-          borderTop: "1px solid var(--color-border-soft)",
-        }}
-      >
-        <ChangePill label="1H" value={detail.change1h} />
-        <ChangePill label="6H" value={detail.change6h} />
-        <ChangePill label="24H" value={detail.change24h} />
-        <span style={{ marginLeft: "auto" }}>
           <CoverageChip text={`DEX data: ${detail.coverage}`} />
-        </span>
+        </div>
       </div>
     </section>
   );

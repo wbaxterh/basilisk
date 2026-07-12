@@ -187,3 +187,16 @@ button {
   .lp-hero-pad { padding: 56px 20px 48px; }
   .lp-section-pad { padding: 48px 20px; }
 }
+
+/* ── Mobile app shell (appended — additive only) ─────────────────────────── */
+
+.bk-mobilenav { display: none; }
+
+@media (max-width: 900px) {
+  :root { --sidebar-width: 0px; }
+  .bk-sidebar { display: none !important; }
+  .bk-main-pad { padding: 14px !important; }
+  .bk-mobilenav { display: flex; }
+  /* Lift the Ask Basilisk launcher above the bottom tab bar */
+  .bk-chat-launcher { bottom: calc(24px + 64px) !important; }
+}

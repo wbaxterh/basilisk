@@ -1,0 +1,37 @@
+---
+slug: v0-5-logos-charts-mobile
+title: "v0.5 — Token logos everywhere, DexHunter-class charts, and a mobile app shell"
+date: 2026-07-11
+authors:
+  - name: Wes Huber
+    title: Founder
+    url: https://github.com/wbaxterh
+tags: [release]
+---
+
+v0.4 made Basilisk conversational; v0.5 makes it feel like a terminal. Every token now has a face, charts grew from four timeframes to eight with ADA denomination and pool switching, and the whole app works one-handed on a phone.
+
+{/* truncate */}
+
+## What's live today
+
+- **Token logos everywhere** — screener, token pages, search, portfolio, movers: every surface, every token, always an image. Logos are **registry-backed**: Cardano Token Registry PNGs (fetched via Koios, validated, and served from our own CDN-cached endpoint) cover the full curated registry today, with a precomputed GeckoTerminal redirect for stragglers and a deterministic monogram as the floor — so nothing ever renders a broken-image icon. Public too: [`GET /api/v1/tokens/{asset}/logo`](/docs/api/overview). The pipeline is written down in [ADR-008](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/008-token-logo-pipeline.md).
+- **Chart v2** — eight timeframes (`1m` / `5m` / `15m` / `1h` / `4h` / `12h` / `1d` / `1w`, up from four), a **USD / ADA quote toggle**, a **pool switcher** (the OHLCV response now returns `poolChoices` so you can chart any of a token's GeckoTerminal pools, not just the deepest), volume bars, and auto-refresh. All of it is in the public [OHLCV endpoint](/docs/api/overview) — new `tf` values, new `quote=usd|ada` param, per-timeframe cache TTLs.
+- **Mobile app shell** — a bottom navigation bar on small screens, so the core surfaces are one thumb-tap away instead of buried in a hamburger menu.
+- **Screener-first IA** — the screener is now the front door of the app; everything else hangs off it.
+- **Portfolio → token links** — every holding in a wallet view now clicks through to its token page (chart, pools, discussion), instead of being a dead row.
+
+## Honesty notes
+
+- **"DexHunter-class" means the chart UX, not tick-live data.** Charts refresh on roughly a **30-second cadence** against cached candles — they are not streaming per-trade. True tick-level, sub-minute data needs our own chain indexer; that's the [Kupmios ingestion roadmap (ADR-001)](https://github.com/wbaxterh/basilisk/blob/main/docs/adr/001-kupmios-primary-chain-data.md), not this release.
+- **ADA-quoted candles are derived.** GeckoTerminal only returns USD, so `quote=ada` re-bases USD candles against ADA's USD price. Good enough for shape and levels; not exchange-native ADA prints.
+- **Charts are still one pool's candles**, not an all-DEX aggregate — the pool switcher makes the choice yours, but each chart names exactly the pool it reads (unchanged since [v0.3](/changelog/v0-3-charts-community)).
+- **Logos are served at submitted size** (~33 KB average registry PNG). A downscale/re-encode pass is deferred — noted as follow-up in ADR-008 — so screener pages pay a few hundred KB of logo bytes on a cold cache today.
+
+## What's next
+
+- **Logo downscale pass** — pre-sized WebP variants so lists stop paying full-resolution bytes.
+- **Own chain ingestion (Kupmios, ADR-001)** — the permanent fix for tick-live charts, all-DEX candles, and native ADA quotes.
+- **x402 pay-per-query** — still in development ([the honest state of x402 on Cardano](/docs/agents/x402)).
+
+Something missing or mislabeled? [GitHub issues](https://github.com/wbaxterh/basilisk/issues) — coverage honesty is a feature, hold us to it.
