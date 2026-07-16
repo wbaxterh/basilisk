@@ -9,12 +9,12 @@
   --color-brand-soft: rgba(32, 235, 122, 0.12);
   --color-brand-dim: #16A35A;
 
-  /* Surfaces */
-  --color-bg-primary: #000000;
-  --color-bg-secondary: #0A0A0B;
-  --color-bg-elevated: #111112;
-  --color-bg-hover: #1A1A1D;
-  --color-bg-tile: #111112;
+  /* Surfaces — near-black retune (issue #93): page < panel < card < hover */
+  --color-bg-primary: #0B0C0F;
+  --color-bg-secondary: #101114;
+  --color-bg-elevated: #15161A;
+  --color-bg-hover: #1C1E23;
+  --color-bg-tile: #15161A;
 
   /* Borders */
   --color-border: #24242C;
@@ -24,7 +24,7 @@
   /* Text */
   --color-text-primary: #FFFFFF;
   --color-text-secondary: #9898A1;
-  --color-text-muted: #6B6B73;
+  --color-text-muted: #8A8A93;
 
   /* Semantic */
   --color-positive: #20EB7A;
@@ -200,4 +200,18 @@ button {
   .bk-mobilenav { display: flex; }
   /* Lift the Ask Basilisk launcher above the bottom tab bar */
   .bk-chat-launcher { bottom: calc(24px + 64px) !important; }
+  /* Keep the chat panel (and its composer) clear of launcher + tab bar */
+  .bk-chat-panel {
+    bottom: calc(88px + 64px) !important;
+    max-height: min(560px, calc(100vh - 200px)) !important;
+  }
+  /* iOS Safari zooms the page when a focused field is <16px */
+  input, textarea { font-size: 16px !important; }
+  /* Pairs table: pool-address hash is tap-copy only — hide it so
+     Price/Liquidity are immediately visible on narrow screens */
+  .bk-pair-hash { display: none !important; }
+  /* Token header: keep the Boost button inline right of the name row
+     instead of wrapping onto an orphaned row */
+  .bk-token-title { min-width: 0 !important; flex: 1 1 0 !important; }
+  .bk-token-boost { align-self: flex-start; }
 }

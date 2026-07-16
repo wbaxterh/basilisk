@@ -14,6 +14,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Screener", href: "/screener", icon: "search" },
+  { label: "DeFi", href: "/defi", icon: "chart" },
   { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
   { label: "Dashboard", href: "/dashboard", icon: "home" },
   { label: "Alerts", href: "/alerts", icon: "bell" },

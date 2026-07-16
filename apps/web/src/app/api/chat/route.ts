@@ -87,18 +87,21 @@ export async function POST(req: Request): Promise<Response> {
     return json(400, { error: "Invalid JSON body" });
   }
 
+  // Key check BEFORE message validation so the ChatPanel health probe
+  // (an intentionally-empty messages array) sees 503 when keyless — a 400
+  // here would make the panel report "healthy" on a dead assistant.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return json(503, {
+      error: "Chat is warming up",
+      hint: "The assistant needs an API key configured.",
+    });
+  }
+
   const history = parseMessages(body);
   if (!history) {
     return json(400, {
       error: "Invalid messages",
       hint: `Expected 1-${MAX_MESSAGES} alternating {role, content} messages (content ≤ ${MAX_CONTENT_CHARS} chars), starting and ending with a user turn.`,
-    });
-  }
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return json(503, {
-      error: "Chat is warming up",
-      hint: "The assistant needs an API key configured.",
     });
   }
 

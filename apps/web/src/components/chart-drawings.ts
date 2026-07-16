@@ -239,7 +239,7 @@ export function hitTest(
 /** globals.css tokens (canvas can't read CSS vars): info + warning. */
 const TREND_COLOR = "#70ECFD";
 const HLINE_COLOR = "#FFC107";
-const HANDLE_FILL = "#111112";
+const HANDLE_FILL = "#15161A"; // --color-bg-elevated (canvas can't read CSS vars)
 const LINE_WIDTH = 1.5;
 
 export interface RenderState {
@@ -286,7 +286,7 @@ export function renderDrawings(
       const label = state.formatPrice ? state.formatPrice(d.points[0].price) : d.points[0].price.toPrecision(6);
       ctx.font = "700 10px 'JetBrains Mono', 'SF Mono', Menlo, monospace";
       const w = ctx.measureText(label).width;
-      ctx.fillStyle = "rgba(17, 17, 18, 0.85)";
+      ctx.fillStyle = "rgba(21, 22, 26, 0.85)";
       ctx.fillRect(area.width - w - 14, seg.y0 - 14, w + 10, 14);
       ctx.fillStyle = HLINE_COLOR;
       ctx.textAlign = "right";

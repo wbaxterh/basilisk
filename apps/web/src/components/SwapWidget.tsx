@@ -180,8 +180,8 @@ const DexHunterSwap = dynamic(
 const BASILISK_COLORS = {
   mainText: "#FFFFFF",
   subText: "#9898A1",
-  background: "#111112",
-  containers: "#1A1A1D",
+  background: "#15161A",
+  containers: "#1C1E23",
   buttonText: "#001A0E",
   accent: "#20EB7A",
 } as const;

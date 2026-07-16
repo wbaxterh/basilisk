@@ -172,7 +172,7 @@ export default function BoostButton({ unit, symbol }: { unit: string; symbol: st
           padding: "8px 14px",
           borderRadius: 6,
           cursor: busy ? "wait" : boosted ? "default" : "pointer",
-          background: isFilled ? "#20EB7A" : "#111112",
+          background: isFilled ? "#20EB7A" : "var(--color-bg-elevated)",
           color: isFilled ? "#001A0E" : "#FFFFFF",
           border: isFilled ? "1px solid #20EB7A" : "1px solid #24242C",
           opacity: busy ? 0.7 : 1,
@@ -219,7 +219,7 @@ export default function BoostButton({ unit, symbol }: { unit: string; symbol: st
               width: 18,
               height: 12,
               borderRadius: 3,
-              background: isFilled ? "rgba(0,26,14,0.2)" : "#1A1A1D",
+              background: isFilled ? "rgba(0,26,14,0.2)" : "var(--color-bg-hover)",
             }}
           />
         ) : countToday !== null ? (
@@ -256,7 +256,7 @@ export default function BoostButton({ unit, symbol }: { unit: string; symbol: st
             bottom: "calc(100% + 8px)",
             left: 0,
             width: 230,
-            background: "#111112",
+            background: "var(--color-bg-elevated)",
             border: "1px solid #24242C",
             borderRadius: 6,
             padding: "10px 12px",

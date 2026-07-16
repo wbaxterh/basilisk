@@ -66,7 +66,7 @@ const stakeChipStyle: React.CSSProperties = {
   fontFamily: "var(--font-mono)",
   fontSize: 11,
   color: "#9898A1",
-  background: "#1A1A1D",
+  background: "var(--color-bg-hover)",
   border: "1px solid #24242C",
   borderRadius: 4,
   padding: "2px 7px",
@@ -178,7 +178,7 @@ export default function Discussion({ unit, symbol }: { unit: string; symbol: str
   return (
     <section
       style={{
-        background: "#111112",
+        background: "var(--color-bg-elevated)",
         border: "1px solid #24242C",
         borderRadius: 8,
         padding: 18,
@@ -207,7 +207,7 @@ export default function Discussion({ unit, symbol }: { unit: string; symbol: str
               width: "100%",
               resize: "vertical",
               minHeight: 68,
-              background: "#0A0A0B",
+              background: "var(--color-bg-secondary)",
               border: "1px solid #24242C",
               borderRadius: 6,
               padding: "10px 12px",
@@ -284,13 +284,13 @@ export default function Discussion({ unit, symbol }: { unit: string; symbol: str
         <div aria-hidden style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {[0, 1, 2].map((i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ width: 130, height: 12, borderRadius: 4, background: "#1A1A1D" }} />
+              <div style={{ width: 130, height: 12, borderRadius: 4, background: "var(--color-bg-hover)" }} />
               <div
                 style={{
                   width: i === 1 ? "62%" : "84%",
                   height: 12,
                   borderRadius: 4,
-                  background: "#1A1A1D",
+                  background: "var(--color-bg-hover)",
                 }}
               />
             </div>
