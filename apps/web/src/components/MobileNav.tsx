@@ -9,9 +9,10 @@ interface NavItem {
   icon: string;
 }
 
-/** Same IA as Sidebar minus Alerts — 4 tabs fit comfortably at 390px. */
+/** Same IA as Sidebar minus Alerts — 5 tabs still fit at 390px (~78px each). */
 const NAV_ITEMS: NavItem[] = [
   { label: "Screener", href: "/screener", icon: "search" },
+  { label: "DeFi", href: "/defi", icon: "chart" },
   { label: "Portfolio", href: "/portfolio", icon: "briefcase" },
   { label: "Dashboard", href: "/dashboard", icon: "home" },
   { label: "Agents", href: "/agents", icon: "robot" },
@@ -29,6 +30,8 @@ function NavIcon({ name }: { name: string }) {
       return <svg {...common}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>;
     case "search":
       return <svg {...common}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>;
+    case "chart":
+      return <svg {...common}><path d="M3 3v18h18" /><path d="M7 16l4-8 4 4 5-6" /></svg>;
     case "robot":
       return <svg {...common}><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M12 5v4" /><circle cx="12" cy="4" r="1" /><path d="M9 14h.01" /><path d="M15 14h.01" /><path d="M2 13v3" /><path d="M22 13v3" /></svg>;
     default:

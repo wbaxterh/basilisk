@@ -27,6 +27,7 @@ interface UiMessage {
 }
 
 const STORAGE_KEY = "basilisk.chat";
+const HEALTH_KEY = "basilisk.chat.health";
 const MAX_INPUT = 2000;
 const HISTORY_CAP = 10;
 
@@ -99,7 +100,7 @@ function renderInline(text: string): React.ReactNode[] {
           style={{
             fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
             fontSize: "12px",
-            background: "#1A1A1D",
+            background: "var(--color-bg-hover)",
             border: "1px solid #24242C",
             borderRadius: "4px",
             padding: "1px 4px",
@@ -188,17 +189,21 @@ function TrashIcon() {
 // Component
 // ---------------------------------------------------------------------------
 
+type Health = "unknown" | "warming" | "healthy";
+
 export default function ChatPanel() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [hoverLauncher, setHoverLauncher] = useState(false);
+  const [health, setHealth] = useState<Health>("unknown");
 
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const restoredRef = useRef(false);
+  const probedRef = useRef(false);
 
   // Restore transcript lazily on first open — the launcher mounts on every
   // page, so closed panels should do zero storage/parse work at load time.
@@ -217,6 +222,42 @@ export default function ChatPanel() {
       // storage full / private mode — non-fatal
     }
   }, [messages]);
+
+  // Warming-state preflight — probe /api/chat once per session on first open
+  // with an empty-messages body. The route rejects it before any model call
+  // (no quota burned): 503 = no API key configured (warming), 400 = validation
+  // reached, i.e. the route is healthy. Cached in sessionStorage.
+  useEffect(() => {
+    if (!open || probedRef.current) return;
+    probedRef.current = true;
+    try {
+      const cached = sessionStorage.getItem(HEALTH_KEY);
+      if (cached === "warming" || cached === "healthy") {
+        setHealth(cached);
+        return;
+      }
+    } catch {
+      // storage unavailable — probe anyway
+    }
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [] }),
+    })
+      .then((res) => {
+        const next: Health = res.status === 503 ? "warming" : "healthy";
+        setHealth(next);
+        try {
+          sessionStorage.setItem(HEALTH_KEY, next);
+        } catch {
+          // non-fatal
+        }
+      })
+      .catch(() => {
+        // network flake — don't lock the composer on a failed probe
+        setHealth("healthy");
+      });
+  }, [open]);
 
   // Auto-scroll on new content.
   useEffect(() => {
@@ -244,7 +285,7 @@ export default function ChatPanel() {
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim().slice(0, MAX_INPUT);
-      if (!trimmed || streaming) return;
+      if (!trimmed || streaming || health === "warming") return;
 
       const userMsg: UiMessage = { role: "user", parts: [{ kind: "text", text: trimmed }] };
       const assistantMsg: UiMessage = { role: "assistant", parts: [] };
@@ -328,7 +369,7 @@ export default function ChatPanel() {
         abortRef.current = null;
       }
     },
-    [messages, streaming, appendToAssistant]
+    [messages, streaming, health, appendToAssistant]
   );
 
   const closePanel = useCallback(() => {
@@ -347,6 +388,7 @@ export default function ChatPanel() {
   }, []);
 
   const remaining = MAX_INPUT - input.length;
+  const warming = health === "warming";
 
   return (
     <>
@@ -387,13 +429,14 @@ export default function ChatPanel() {
         <div
           role="dialog"
           aria-label="Ask Basilisk"
+          className="bk-chat-panel"
           style={{
             position: "fixed",
             right: "24px",
             bottom: "88px",
             width: "min(400px, calc(100vw - 32px))",
             height: "min(560px, 70vh)",
-            background: "#0A0A0B",
+            background: "var(--color-bg-secondary)",
             border: "1px solid #24242C",
             borderRadius: "12px",
             boxShadow: "0 10px 40px rgba(0, 0, 0, 0.6)",
@@ -470,6 +513,24 @@ export default function ChatPanel() {
             </button>
           </div>
 
+          {/* Warming banner */}
+          {warming && (
+            <div
+              role="status"
+              style={{
+                padding: "8px 14px",
+                background: "rgba(255, 193, 7, 0.1)",
+                borderBottom: "1px solid rgba(255, 193, 7, 0.3)",
+                color: "#FFC107",
+                fontSize: "11.5px",
+                lineHeight: 1.45,
+                flexShrink: 0,
+              }}
+            >
+              The assistant is warming up — answers are offline right now
+            </div>
+          )}
+
           {/* Messages */}
           <div
             ref={scrollRef}
@@ -494,16 +555,18 @@ export default function ChatPanel() {
                     <button
                       key={s}
                       type="button"
+                      disabled={warming}
                       onClick={() => void send(s)}
                       style={{
                         textAlign: "left",
                         fontSize: "12px",
                         color: "#9898A1",
-                        background: "#111112",
+                        background: "var(--color-bg-elevated)",
                         border: "1px solid #24242C",
                         borderRadius: "8px",
                         padding: "9px 12px",
-                        cursor: "pointer",
+                        cursor: warming ? "default" : "pointer",
+                        opacity: warming ? 0.5 : 1,
                       }}
                     >
                       {s}
@@ -538,7 +601,7 @@ export default function ChatPanel() {
                           color: "#FFFFFF",
                         }
                       : {
-                          background: "#111112",
+                          background: "var(--color-bg-elevated)",
                           border: "1px solid #1A1A20",
                           color: "#FFFFFF",
                         }),
@@ -559,7 +622,7 @@ export default function ChatPanel() {
                             fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
                             fontSize: "11px",
                             color: "#9898A1",
-                            background: "#1A1A1D",
+                            background: "var(--color-bg-hover)",
                             border: "1px solid #24242C",
                             borderRadius: "999px",
                             padding: "2px 9px",
@@ -615,10 +678,14 @@ export default function ChatPanel() {
               <textarea
                 ref={textareaRef}
                 value={input}
-                disabled={streaming}
+                disabled={streaming || warming}
                 maxLength={MAX_INPUT}
                 rows={1}
-                placeholder="Ask about tokens, wallets, the market…"
+                placeholder={
+                  warming
+                    ? "Assistant offline — check back soon"
+                    : "Ask about tokens, wallets, the market…"
+                }
                 onChange={(e) => {
                   setInput(e.target.value);
                   const el = e.target;
@@ -634,7 +701,7 @@ export default function ChatPanel() {
                 style={{
                   flex: 1,
                   resize: "none",
-                  background: "#111112",
+                  background: "var(--color-bg-elevated)",
                   border: "1px solid #24242C",
                   borderRadius: "8px",
                   padding: "9px 11px",
@@ -644,14 +711,14 @@ export default function ChatPanel() {
                   outline: "none",
                   lineHeight: 1.4,
                   maxHeight: "72px",
-                  opacity: streaming ? 0.6 : 1,
+                  opacity: streaming || warming ? 0.6 : 1,
                 }}
               />
               <button
                 type="button"
                 aria-label="Send message"
                 onClick={() => void send(input)}
-                disabled={streaming || input.trim().length === 0}
+                disabled={streaming || warming || input.trim().length === 0}
                 style={{
                   width: "34px",
                   height: "34px",
@@ -661,8 +728,8 @@ export default function ChatPanel() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  cursor: streaming || input.trim().length === 0 ? "default" : "pointer",
-                  opacity: streaming || input.trim().length === 0 ? 0.45 : 1,
+                  cursor: streaming || warming || input.trim().length === 0 ? "default" : "pointer",
+                  opacity: streaming || warming || input.trim().length === 0 ? 0.45 : 1,
                   flexShrink: 0,
                 }}
               >

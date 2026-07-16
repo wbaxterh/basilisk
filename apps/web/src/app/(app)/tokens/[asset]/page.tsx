@@ -336,7 +336,8 @@ function CoverageChip({ text }: { text?: string }) {
         fontSize: 10.5,
         letterSpacing: 0.3,
         color: "var(--color-text-muted)",
-        whiteSpace: "nowrap",
+        maxWidth: "100%",
+        lineHeight: 1.4,
       }}
     >
       <span
@@ -724,7 +725,7 @@ function TokenHeader({ detail }: { detail: TokenDetail }) {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
         <HeaderLogo detail={detail} />
 
-        <div style={{ flex: 1, minWidth: 240 }}>
+        <div className="bk-token-title" style={{ flex: 1, minWidth: 240 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6 }}>{detail.name}</h1>
             <span
@@ -771,7 +772,7 @@ function TokenHeader({ detail }: { detail: TokenDetail }) {
           )}
         </div>
 
-        <div style={{ marginLeft: "auto" }}>
+        <div className="bk-token-boost" style={{ marginLeft: "auto" }}>
           <BoostButton unit={detail.address} symbol={detail.symbol} />
         </div>
       </div>
@@ -858,6 +859,8 @@ function HeroBand({ detail }: { detail: TokenDetail }) {
             flexDirection: "column",
             alignItems: "flex-end",
             gap: 10,
+            minWidth: 0,
+            maxWidth: "100%",
           }}
         >
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -1217,7 +1220,7 @@ function PairsTable({ pairs, coverage }: { pairs: PairRow[]; coverage?: string }
           <thead>
             <tr style={{ background: "var(--color-bg-secondary)", borderBottom: "1px solid var(--color-border)" }}>
               <PairTh align="left">DEX</PairTh>
-              <PairTh align="left">Pair</PairTh>
+              <PairTh align="left" className="bk-pair-hash">Pair</PairTh>
               <PairTh align="right">Price</PairTh>
               <PairTh align="right">Liquidity</PairTh>
               <PairTh align="right">24H Vol</PairTh>
@@ -1240,7 +1243,7 @@ function PairsTable({ pairs, coverage }: { pairs: PairRow[]; coverage?: string }
                       / {p.quoteSymbol}
                     </span>
                   </td>
-                  <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
+                  <td className="bk-pair-hash" style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
                     <a
                       href={httpUrlOrNull(p.url) ?? `https://dexscreener.com/cardano/${p.pairAddress}`}
                       target="_blank"
@@ -1313,9 +1316,18 @@ function PairsTable({ pairs, coverage }: { pairs: PairRow[]; coverage?: string }
   );
 }
 
-function PairTh({ align, children }: { align: "left" | "right"; children: React.ReactNode }) {
+function PairTh({
+  align,
+  children,
+  className,
+}: {
+  align: "left" | "right";
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <th
+      className={className}
       style={{
         padding: "9px 16px",
         textAlign: align,

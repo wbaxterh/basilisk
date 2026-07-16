@@ -606,7 +606,7 @@ function TopBar() {
     <nav style={{
       position: "sticky", top: 0, zIndex: 100,
       borderBottom: "1px solid var(--color-border)",
-      background: "rgba(0,0,0,0.7)", backdropFilter: "saturate(180%) blur(14px)",
+      background: "rgba(11,12,15,0.72)", backdropFilter: "saturate(180%) blur(14px)",
       WebkitBackdropFilter: "saturate(180%) blur(14px)",
     }}>
       <div style={{
@@ -697,20 +697,23 @@ function MarketStrip({ ada, loaded }: { ada: AdaMarket | null; loaded: boolean }
       borderTop: "1px solid var(--color-border)", background: "var(--color-bg-elevated)",
       overflow: "hidden", position: "relative", zIndex: 2,
     }}>
+      {/* auto-fit grid: 4-up on desktop, clean 2x2 at phone widths — no ragged wrap */}
       <div style={{
         maxWidth: "var(--container-max)", margin: "0 auto", padding: "12px 24px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24,
-        flexWrap: "wrap",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+        gap: "10px 24px", alignItems: "start",
       }}>
         {items.map((i) => (
-          <div key={i.label} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 13 }}>
-            <span style={{ color: "var(--color-text-muted)", fontWeight: 600, letterSpacing: 0.4, fontSize: 11, textTransform: "uppercase" }}>{i.label}</span>
-            <span style={{ color: "var(--color-text-primary)", fontWeight: 700, fontFamily: "var(--font-mono)" }}>{i.value}</span>
-            {i.delta && (
-              <span style={{ color: i.positive ? "var(--color-positive)" : "var(--color-warning)", fontWeight: 600, fontSize: 12, fontFamily: "var(--font-mono)" }}>
-                {i.delta}
-              </span>
-            )}
+          <div key={i.label} style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+            <span style={{ color: "var(--color-text-muted)", fontWeight: 600, letterSpacing: 0.4, fontSize: 11, textTransform: "uppercase", whiteSpace: "nowrap" }}>{i.label}</span>
+            <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+              <span style={{ color: "var(--color-text-primary)", fontWeight: 700, fontFamily: "var(--font-mono)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.value}</span>
+              {i.delta && (
+                <span style={{ color: i.positive ? "var(--color-positive)" : "var(--color-warning)", fontWeight: 600, fontSize: 12, fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
+                  {i.delta}
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>

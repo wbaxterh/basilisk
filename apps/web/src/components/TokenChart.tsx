@@ -651,8 +651,8 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
         horzLines: { color: GRID },
       },
       crosshair: {
-        vertLine: { color: CROSSHAIR, width: 1, style: 3, labelBackgroundColor: "#1A1A1D" },
-        horzLine: { color: CROSSHAIR, width: 1, style: 3, labelBackgroundColor: "#1A1A1D" },
+        vertLine: { color: CROSSHAIR, width: 1, style: 3, labelBackgroundColor: "#1C1E23" },
+        horzLine: { color: CROSSHAIR, width: 1, style: 3, labelBackgroundColor: "#1C1E23" },
       },
       timeScale: {
         borderColor: AXIS_BORDER,
@@ -1356,10 +1356,30 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
         ...(isFullscreen && fsFallback
           ? { position: "fixed" as const, inset: 0, zIndex: 1000, overflow: "auto" }
           : {}),
-        ...(isFullscreen ? { background: "#0A0A0B" } : {}),
+        ...(isFullscreen ? { background: "var(--color-bg-secondary)" } : {}),
       }}
     >
-      <style>{`@keyframes bslk-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
+      <style>{`
+        @keyframes bslk-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+        /* Toolbar ergonomics (additive): >=36px hit areas on narrow screens,
+           and visible tool labels on coarse pointers (titles stay for desktop).
+           !important is required only where an inline style must be beaten. */
+        .bslk-tool-label { display: none; }
+        @media (max-width: 900px) {
+          .bslk-pill { min-height: 36px !important; min-width: 36px !important; padding: 8px 12px !important; }
+          .bslk-toolbtn { width: 36px !important; height: 36px !important; }
+          .bslk-drawbar { width: 44px !important; }
+        }
+        @media (pointer: coarse) {
+          .bslk-pill { min-height: 36px !important; min-width: 36px !important; padding: 8px 12px !important; }
+          .bslk-drawbar { width: auto !important; align-items: stretch !important; padding: 8px 5px !important; }
+          .bslk-toolbtn {
+            width: auto !important; height: 36px !important; min-width: 36px;
+            justify-content: flex-start !important; padding: 0 9px; gap: 7px;
+          }
+          .bslk-tool-label { display: inline; font-size: 11px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; }
+        }
+      `}</style>
 
       {/* Header: label + pool dropdown + LIVE + range delta + coverage */}
       <div
@@ -1389,6 +1409,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button
+              className="bslk-pill"
               onClick={() => setMenuOpen(menuOpen === "pool" ? null : "pool")}
               title={`Candles read from this pool: ${data.pool.address}`}
               aria-haspopup="listbox"
@@ -1429,7 +1450,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                   left: 0,
                   zIndex: 40,
                   minWidth: 260,
-                  background: "#111112",
+                  background: "var(--color-bg-elevated)",
                   border: "1px solid var(--color-border)",
                   borderRadius: 8,
                   padding: 4,
@@ -1667,7 +1688,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 right: 0,
                 zIndex: 40,
                 minWidth: 170,
-                background: "#111112",
+                background: "var(--color-bg-elevated)",
                 border: "1px solid var(--color-border)",
                 borderRadius: 8,
                 padding: 4,
@@ -1824,6 +1845,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
           <>
             {/* Drawing toolbar — vertical, left edge of the chart card */}
             <div
+              className="bslk-drawbar"
               role="toolbar"
               aria-label="Drawing tools"
               aria-orientation="vertical"
@@ -1843,6 +1865,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 onClick={() => selectTool("trend")}
                 title="Trendline — click two points (Esc cancels)"
                 ariaLabel="Trendline tool"
+                label="Trend"
               >
                 <TrendlineIcon />
               </ToolButton>
@@ -1851,6 +1874,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 onClick={() => selectTool("ray")}
                 title="Ray — click two points, extends right (Esc cancels)"
                 ariaLabel="Ray tool"
+                label="Ray"
               >
                 <RayIcon />
               </ToolButton>
@@ -1859,6 +1883,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 onClick={() => selectTool("hline")}
                 title="Horizontal line — one click, shows the price"
                 ariaLabel="Horizontal line tool"
+                label="H-Line"
               >
                 <HLineIcon />
               </ToolButton>
@@ -1867,6 +1892,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 onClick={() => selectTool("eraser")}
                 title="Eraser — click a drawing to delete it"
                 ariaLabel="Eraser tool"
+                label="Eraser"
               >
                 <EraserIcon />
               </ToolButton>
@@ -1878,6 +1904,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                   background: "var(--color-border-soft)",
                   margin: "2px 0",
                   flexShrink: 0,
+                  alignSelf: "center",
                 }}
               />
               <ToolButton
@@ -1885,6 +1912,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                 onClick={clearAllDrawings}
                 title="Clear all drawings for this token"
                 ariaLabel="Clear all drawings"
+                label="Clear"
               >
                 <TrashIcon />
               </ToolButton>
@@ -1920,7 +1948,7 @@ export default function TokenChart({ asset, height = 380 }: { asset: string; hei
                     padding: "3px 5px 3px 10px",
                     borderRadius: 999,
                     border: "1px solid var(--color-border)",
-                    background: "rgba(17, 17, 18, 0.92)",
+                    background: "rgba(21, 22, 26, 0.92)",
                   }}
                 >
                   <button
@@ -2079,6 +2107,7 @@ function Pill({
 }) {
   return (
     <button
+      className="bslk-pill"
       onClick={disabled ? undefined : onClick}
       aria-pressed={active}
       aria-label={ariaLabel}
@@ -2110,22 +2139,28 @@ function Pill({
   );
 }
 
-/** 24×24 stroke-icon button for the vertical drawing toolbar (30px rail). */
+/** 24×24 stroke-icon button for the vertical drawing toolbar (30px rail).
+ * Grows to ≥36px hit areas at ≤900px and shows `label` next to the icon on
+ * coarse pointers — see the .bslk-toolbtn/.bslk-tool-label rules above. */
 function ToolButton({
   active,
   onClick,
   title,
   ariaLabel,
+  label,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   title: string;
   ariaLabel: string;
+  /** Visible text label on coarse pointers (hidden on desktop; title stays). */
+  label?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
+      className="bslk-toolbtn"
       onClick={onClick}
       aria-pressed={active}
       aria-label={ariaLabel}
@@ -2146,6 +2181,7 @@ function ToolButton({
       }}
     >
       {children}
+      {label ? <span className="bslk-tool-label">{label}</span> : null}
     </button>
   );
 }

@@ -377,6 +377,27 @@ function PortfolioContent() {
 // Pieces
 // ---------------------------------------------------------------------------
 
+/** Inline ADA roundel for the lovelace pseudo-row — the logo API has no
+ * "lovelace" unit (fetching it 400s), so render a stroke-SVG ₳ mark instead. */
+function AdaMark() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+        background: "var(--color-brand-soft)", border: "1px solid rgba(32, 235, 122, 0.25)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 21 L12 3 L19 21" />
+        <line x1="7.5" y1="13" x2="16.5" y2="13" />
+        <line x1="5" y1="17" x2="19" y2="17" />
+      </svg>
+    </span>
+  );
+}
+
 /** 20px token avatar via the logo proxy — falls back to a letter chip if it 404s. */
 function HoldingLogo({ unit, label }: { unit: string; label: string }) {
   const [failed, setFailed] = useState(false);
@@ -427,7 +448,7 @@ function HoldingRow({ row: r, pct }: { row: Row; pct: number | null }) {
       }}
     >
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <HoldingLogo unit={r.key} label={r.ticker ?? r.name} />
+        {r.isAda ? <AdaMark /> : <HoldingLogo unit={r.key} label={r.ticker ?? r.name} />}
         <span style={{ fontWeight: 700, color: r.isAda ? "var(--color-brand)" : "var(--color-text-primary)" }}>
           {r.ticker ?? shorten(r.name, 8, 4)}
         </span>

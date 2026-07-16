@@ -30,7 +30,7 @@ export default function WhitepaperPage() {
       <nav style={{
         position: "sticky", top: 0, zIndex: 100,
         borderBottom: "1px solid var(--color-border)",
-        background: "rgba(0,0,0,0.7)", backdropFilter: "saturate(180%) blur(14px)",
+        background: "rgba(11,12,15,0.72)", backdropFilter: "saturate(180%) blur(14px)",
         WebkitBackdropFilter: "saturate(180%) blur(14px)",
       }}>
         <div style={{

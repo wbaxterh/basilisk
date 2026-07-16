@@ -175,14 +175,14 @@ function InstallRow({ homepage, displayName }: { homepage: string; displayName: 
         fontSize: 13,
         color: "#FFFFFF",
         textDecoration: "none",
-        background: "#0A0A0B",
+        background: "var(--color-bg-secondary)",
         border: "1px solid #1A1A20",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.background = "#1A1A1D";
+        (e.currentTarget as HTMLAnchorElement).style.background = "var(--color-bg-hover)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.background = "#0A0A0B";
+        (e.currentTarget as HTMLAnchorElement).style.background = "var(--color-bg-secondary)";
       }}
     >
       <WalletMark name={displayName} />
@@ -221,6 +221,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerWallets, setPickerWallets] = useState<WalletInfo[]>([]);
+  // Touch phones/tablets can't install desktop extensions — the no-wallet
+  // state points them at their wallet's dApp browser instead (same links).
+  const [mobileLike, setMobileLike] = useState(false);
+
+  useEffect(() => {
+    const update = () =>
+      setMobileLike(
+        window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 900
+      );
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const apiRef = useRef<CardanoWalletApi | null>(null);
   // Resolver for the connect() promise while the picker modal is open.
@@ -428,8 +441,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 400,
-            background: "rgba(0,0,0,0.6)",
+            zIndex: 1200, // above the Ask Basilisk launcher (1001) — nothing floats over the scrim
+            background: "rgba(11,12,15,0.6)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -443,7 +456,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             style={{
               width: 320,
               maxWidth: "100%",
-              background: "#111112",
+              maxHeight: "calc(100vh - 48px)", // never taller than the viewport (small phones)
+              overflowY: "auto",
+              background: "var(--color-bg-elevated)",
               border: "1px solid #24242C",
               borderRadius: 8,
               padding: 14,
@@ -465,10 +480,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
             {pickerWallets.length === 0 ? (
               <div style={{ padding: "6px 4px 4px", fontSize: 13, color: "#9898A1", lineHeight: 1.5 }}>
-                No Cardano wallets detected.
-                <div style={{ fontSize: 12, color: "#6B6B73", margin: "4px 0 12px" }}>
-                  Install a CIP-30 browser wallet, then reload this page.
-                </div>
+                {mobileLike ? (
+                  <>
+                    On mobile, open basilisk in your wallet&apos;s dApp browser.
+                    <div style={{ fontSize: 12, color: "#6B6B73", margin: "4px 0 12px" }}>
+                      Get a Cardano wallet app below, then visit this page from the browser
+                      built into the app.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    No Cardano wallets detected.
+                    <div style={{ fontSize: 12, color: "#6B6B73", margin: "4px 0 12px" }}>
+                      Install a CIP-30 browser wallet, then reload this page.
+                    </div>
+                  </>
+                )}
                 {CANONICAL_WALLETS.slice(0, 4).map((w) => (
                   <InstallRow key={w.key} homepage={w.homepage} displayName={w.displayName} />
                 ))}
@@ -495,7 +522,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     opacity: status === "connecting" ? 0.6 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "#1A1A1D";
+                    (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg-hover)";
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLButtonElement).style.background = "transparent";

@@ -89,7 +89,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Stat strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
         <Stat
           label="ADA Price"
           value={ada ? fmtUsd(ada.price, 4) : "—"}
@@ -114,7 +114,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Chart + movers */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 12, marginBottom: 16 }}>
         <ChartTile ada={ada} />
         <MoversTile gainers={gainers} losers={losers} loading={moversLoading} />
       </div>
@@ -399,7 +399,7 @@ function NetworkActivity({ tip }: { tip: ChainTip | null }) {
         <div style={{ fontSize: 13, fontWeight: 700 }}>Network</div>
         <span style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: 0.6 }}>KOIOS · MAINNET</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
         <Row label="Latest block" value={tip ? fmtCount(tip.block) : "—"} />
         <Row label="Block age" value={blockAge != null ? `${blockAge}s ago` : "—"} />
         <Row label="Epoch slot" value={tip ? fmtCount(tip.epochSlot) : "—"} />
