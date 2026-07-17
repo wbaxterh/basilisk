@@ -1,20 +1,18 @@
-<!-- PR title: "US-x.y: short description" -->
+<!-- PR title: "feat|fix|docs|chore: short description" -->
 
 ## What & why
-<!-- One or two lines. Link the story: -->
+<!-- One or two lines. Link the issue: -->
 Closes #
 
 ## Changes
 -
 
-## Definition of Done (plan §5)
-- [ ] Meets the story's acceptance criteria
-- [ ] Unit/integration tests pass
-- [ ] Instrumented (logs/metrics where relevant)
-- [ ] No secrets in code (used env / secret store)
-- [ ] Docs / changelog updated if needed
-- [ ] Deployed to staging and smoke-tested
-- [ ] _(data stories)_ Correctness cross-checked against an external source (Blockfrost / DEX UI)
+## Checklist
+- [ ] `npm run typecheck` and the `build` CI check pass
+- [ ] UI changes: verified at 1440px **and** 390px (no horizontal overflow)
+- [ ] Data/claims: coverage labels stay honest (no "total Cardano volume")
+- [ ] No secrets in code — env vars only, `.env.example` updated if new ones
+- [ ] Docs / changelog / ADR updated if behavior or architecture changed
 
-## Screenshots / notes
-<!-- optional -->
+## Screenshots
+<!-- Before/after for UI changes. The ui-screenshots workflow will also attach route previews. -->

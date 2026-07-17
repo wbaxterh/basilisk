@@ -19,7 +19,7 @@ By participating, you agree to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Finding something to work on
 
-All work lives as **GitHub Issues**, one per user story (`US-x.y`), on the **[Basilisk MVP project board](https://github.com/users/wbaxterh/projects/7)**.
+All work lives as **GitHub Issues**, one per feature/fix, on the **[Basilisk MVP project board](https://github.com/users/wbaxterh/projects/7)**.
 
 Filter by these labels:
 
@@ -66,9 +66,9 @@ Useful scripts: `npm run typecheck`, `npm run build`, `npm run test` (all worksp
 `main` is protected by a server-side ruleset — **no direct pushes**. Every change goes through a pull request.
 
 ```bash
-git switch -c feat/US-0.1-demeter-client     # feat|fix|chore/<story-id>-<slug>
+git switch -c feat/short-slug                # feat|fix|docs|chore/<slug>
 # … make your change, with tests …
-git commit -m "US-0.1: add Demeter chain-data client
+git commit -m "feat: add chain-data client
 
 Closes #1"
 git push -u origin HEAD                        # then open a PR
@@ -76,8 +76,8 @@ gh pr create --fill                            # or via the web UI
 ```
 
 **Conventions**
-- **Branch:** `feat/US-x.y-slug`, `fix/US-x.y-slug`, or `chore/slug`.
-- **PR title:** `US-x.y: short description`.
+- **Branch:** `feat/<slug>`, `fix/<slug>`, `docs/<slug>`, or `chore/<slug>`.
+- **PR title:** `feat|fix|docs|chore: short description`. Reviews: @wbaxterh is a required code-owner reviewer on every PR.
 - **PR body:** must reference the issue with `Closes #<n>` and complete the Definition-of-Done checklist (auto-added from the PR template).
 - **Merge:** squash (keeps `main` linear). Delete the branch after merge.
 

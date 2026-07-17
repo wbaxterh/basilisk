@@ -1,0 +1,50 @@
+name: 🐛 Bug report
+description: Something is broken on the site, the API, or the MCP server
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! For **security vulnerabilities**, please use
+        [private reporting](https://github.com/wbaxterh/basilisk/security/advisories/new) instead.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Web UI (basilisk-seven.vercel.app)
+        - REST API (/api/v1)
+        - MCP server (/api/mcp)
+        - Ask Basilisk (chat)
+        - Docs site
+        - Local development
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead? Include the URL/route or the exact API/MCP call.
+      placeholder: e.g. /tokens/279c… chart shows "data delayed" forever on 1W timeframe
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Browser / client & device
+      placeholder: e.g. Chrome 132 on iPhone 15 · or `curl` · or Claude Desktop (MCP)
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots / console output
+      description: Anything from the browser console or API response helps a lot.
