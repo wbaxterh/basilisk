@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/wbaxterh/basilisk/security/advisories/new
+    about: Please report vulnerabilities privately — not as public issues.
+  - name: 📚 Documentation
+    url: https://basilisk-docs.vercel.app
+    about: API reference, MCP quickstart, and guides.

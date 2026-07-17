@@ -1,0 +1,36 @@
+name: 💡 Feature request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the trader/agent/developer need — not just the solution.
+      placeholder: e.g. As an LP I want to compare two tokens' charts side by side…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: What would you build? Rough sketches welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Web UI
+        - REST API (/api/v1)
+        - MCP server / agents
+        - Data coverage
+        - Docs
+        - Other
+  - type: markdown
+    attributes:
+      value: |
+        Heads-up: several backlog areas are gated on infrastructure decisions
+        (see the [Infrastructure Brief](../blob/main/docs/INFRA_BRIEF_V07.md) and issue #85) —
+        your idea is still welcome, it helps prioritize those decisions.
